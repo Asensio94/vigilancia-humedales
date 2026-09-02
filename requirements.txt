@@ -1,0 +1,14 @@
+pystac-client>=0.8
+odc-stac>=0.3.10
+odc-geo>=0.4.8
+rasterio>=1.4
+xarray>=2024.6
+numpy>=1.26
+pandas>=2.2
+shapely>=2.0
+pyproj>=3.6
+requests>=2.31
+typer>=0.12
+rich>=13
+matplotlib>=3.9
+folium>=0.17
