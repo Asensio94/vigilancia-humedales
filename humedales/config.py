@@ -30,7 +30,16 @@ RESOLUTION_M = 20
 PIXEL_HA = (RESOLUTION_M**2) / 10_000  # 0.04 ha por píxel a 20 m
 
 # Bandas Sentinel-2 (nombres Earth Search) → uso
-BANDS = ["blue", "green", "red", "rededge1", "nir", "swir16", "scl", "cloud"]
+# La banda `cloud` (probabilidad de nube de Sen2Cor) se descartó a propósito: en Earth
+# Search apunta a CLD_20m.jp2 en el bucket original `sentinel-s2-l2a`, que no es COG y
+# es de pago por peticiones. Leerla multiplicaba por diez el tiempo de carga de Doñana
+# y a veces no terminaba. Las nubes finas se detectan con la banda azul (BLUE_CLOUD).
+BANDS = ["blue", "green", "red", "rededge1", "nir", "swir16", "scl"]
+
+# Hilos de descarga por proceso. Dask usa por defecto un hilo por CPU (16 aquí), y
+# con varios procesos de backfill en marcha eso pasaba de cien peticiones
+# simultáneas a S3: el DNS dejaba de resolver y se perdían fechas enteras.
+DASK_THREADS = 4
 
 # Clases SCL (Scene Classification Layer)
 SCL_NODATA = 0
@@ -41,7 +50,7 @@ SCL_WATER = 6
 # Umbrales de calidad de una observación
 MAX_CLOUD_FRAC = 0.20      # fracción nubosa dentro del humedal para considerar la fecha
 MIN_COVERAGE = 0.95        # fracción del humedal cubierta por las escenas del día
-MAX_CLOUD_PROB = 30        # probabilidad de nube (banda cloud, 0-100) por encima de la cual el píxel es inválido
+BLUE_CLOUD = 0.22          # reflectancia azul por encima de la cual el píxel se trata como nube
 BLUE_HAZE = 0.12           # reflectancia azul mediana del sitio por encima de la cual se asume neblina
 
 # Umbrales de índices

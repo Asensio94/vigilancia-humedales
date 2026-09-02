@@ -8,7 +8,14 @@ serie histórica del mismo humedal en la misma época del año.
 ## Estado
 
 Prototipo v0.1 (2 de septiembre de 2026). Funciona de extremo a extremo sin ninguna clave de acceso.
-Series cargadas: Tablas de Daimiel (jul-sep 2026), Mar Menor (ago 2026), Doñana (finales de ago 2026).
+Serie histórica completa de Tablas de Daimiel: 475 fechas entre julio de 2017 y septiembre de 2026,
+322 válidas. Reproduce la sequía documentada de La Mancha; mediana anual de agua libre en hectáreas:
+
+| 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 |
+|---|---|---|---|---|---|---|---|---|---|
+| 225 | 207 | 86 | 37 | 41 | 26 | 16 | 34 | 72 | 156 |
+
+El resto de humedales está en carga (`backfill`).
 
 ## Uso
 
@@ -17,15 +24,33 @@ Series cargadas: Tablas de Daimiel (jul-sep 2026), Mar Menor (ago 2026), Doñana
 .venv/Scripts/python.exe -m humedales.cli run --site tablas-daimiel --since 2026-06-01
 .venv/Scripts/python.exe -m humedales.cli run                 # todos, solo fechas nuevas
 .venv/Scripts/python.exe -m humedales.cli report              # informe desde las series guardadas
+.venv/Scripts/python.exe -m humedales.cli backfill            # histórico completo desde 2017
 ```
 
 Genera `output/informe_<fecha>.html` (resumen, alertas, gráficas de serie, imagen de la última fecha,
 mapa) y `output/alertas_<fecha>.json`. Las series viven en `data/series/<humedal>.csv`, una fila por fecha,
 y se amplían de forma incremental: cada ejecución solo procesa las fechas que faltan.
 
-Para construir la referencia histórica basta con `run --since 2017-07-01` (Sentinel-2 L2A disponible
-desde mediados de 2017). Coste aproximado: 10-20 s por fecha en un humedal pequeño o mediano
-(Tablas, Mar Menor); Doñana tarda más porque abarca cuatro teselas.
+### Backfill del histórico
+
+`backfill` construye la referencia histórica desde julio de 2017, que es cuando empieza Sentinel-2 L2A
+en el catálogo. Reparte las fechas entre varios procesos (la descarga desde S3 es el cuello de botella,
+no el cálculo), guarda cada doce fechas y omite las que ya están en el CSV, así que es **reanudable**:
+si se interrumpe, se repite el mismo comando y continúa donde estaba.
+
+```bash
+# Doñana aparte, con menos procesos: sus mosaicos son de 3.000 x 2.800 px por banda
+.venv/Scripts/python.exe -m humedales.cli backfill -s donana --workers 4
+.venv/Scripts/python.exe -m humedales.cli backfill -s tablas-daimiel -s mar-menor --workers 5
+```
+
+Son unas 475-600 fechas por humedal en nueve años, y unos 10 s por fecha en Doñana con cuatro
+procesos. Conviene lanzar **un humedal a la vez**: cada proceso abre ya varias descargas en paralelo
+y con dos backfills simultáneos se saturaba la red (ver más abajo).
+
+Las fechas que fallan por red se reintentan tres veces dentro del proceso hijo y, si aun así fallan,
+se registran con la marca `FALLO` y quedan sin guardar: como el backfill es reanudable, basta repetir
+el mismo comando para volver a intentarlas.
 
 ## Fuentes
 
@@ -48,9 +73,9 @@ error del prototipo).
 
 1. `sites.py`: catálogo de humedales con sus códigos Natura 2000; descarga y cachea la geometría.
 2. `stac.py`: busca escenas por bbox y fecha, agrupa por día solar, decide escala y offset por escena.
-3. `indices.py`: carga con `odc-stac` las bandas B02, B03, B04, B05, B08, B11, SCL y probabilidad de
-   nube recortadas al humedal, en ETRS89/UTM 30N a 20 m, y calcula por fecha:
-   - cobertura y fracción nubosa dentro del humedal (clases SCL + probabilidad de nube > 30 %),
+3. `indices.py`: carga con `odc-stac` las bandas B02, B03, B04, B05, B08, B11 y SCL recortadas al
+   humedal, en ETRS89/UTM 30N a 20 m, y calcula por fecha:
+   - cobertura y fracción nubosa dentro del humedal (clases SCL más azul > 0.22),
    - **neblina**: mediana de reflectancia azul de los píxeles válidos > 0.12 descarta la fecha
      (la SCL no detecta calimas finas que inflan el agua detectada x3),
    - **agua libre**: píxeles válidos con MNDWI > 0 y NDVI < 0.15,
@@ -71,6 +96,7 @@ error del prototipo).
    - **turbidez** (media): NDTI por encima del percentil 90 histórico estacional.
    Las lagunas de agua permanente (Mar Menor, l'Albufera) no generan alertas de superficie.
 6. `report.py`: informe HTML autocontenido (imágenes embebidas) con mapa folium.
+7. `backfill.py`: carga masiva paralela y reanudable del histórico.
 
 ## Limitaciones conocidas
 
@@ -88,13 +114,51 @@ error del prototipo).
 
 ## Siguientes pasos
 
-1. Backfill 2017-2026 de los seis humedales para tener referencia histórica (ejecución larga, una vez).
+1. Calibrar S2C contra S2A/S2B (desplazamiento de B11 o umbral MNDWI propio) para recuperar un tercio
+   de las observaciones desde finales de 2024, que hoy no cuentan para las alertas.
 2. Máscaras de trabajo por humedal (marisma de Doñana, lámina del Mar Menor sin islas) en `data/sites/`.
 3. Umbral de agua adaptativo (Otsu) y contraste con la capa Global Surface Water del JRC.
 4. Contexto hidrológico: piezómetros de Doñana (CHG/IGME) y aforos SAIH para explicar las alertas.
 5. Ampliar el catálogo a la lista Ramsar española (76 sitios) y a las ZEPA de humedal.
 6. Notificaciones (correo/Telegram) y ejecución programada semanal.
 7. Servicio web con suscripción por humedal, compartiendo infraestructura con el observatorio de alegaciones.
+
+### La banda de probabilidad de nube no se puede usar
+
+Earth Search expone un asset `cloud` con la probabilidad de nube de Sen2Cor, pero su URL apunta a
+`CLD_20m.jp2` dentro del bucket original `sentinel-s2-l2a`: no es un COG, hay que leer el fichero
+entero y ese bucket cobra por petición. Incluirla multiplicaba por diez el tiempo de carga de Doñana
+y en una prueba no terminó en diez minutos. Se descartó. Las nubes finas que SCL no marca se detectan
+ahora con la propia banda azul: píxel con reflectancia azul > 0.22 se trata como nube, y si la mediana
+del humedal pasa de 0.12 la fecha entera se descarta por neblina.
+
+La otra optimización que cambió el orden de magnitud fue cargar con dask (`chunks`) en vez de
+secuencialmente: los COG se descargan en paralelo y Doñana pasó de 185 a 35 segundos por fecha.
+
+### Cuidado con la concurrencia: la red es el límite
+
+Dask abre por defecto un hilo por CPU (dieciséis en esta máquina). Con dos backfills simultáneos y
+nueve procesos entre ambos, eso pasaba de cien lecturas abiertas contra S3 a la vez, y el sistema
+empezaba a devolver `CURL error: Could not resolve host`, `WarpOperationError` y JPEG2000 truncados:
+más de trescientas lecturas fallidas y cientos de fechas perdidas, sin ganar velocidad (Doñana bajó
+solo de 33 a 31,7 s por fecha con cuatro procesos). Ahora `config.DASK_THREADS` limita los hilos por
+proceso a cuatro y el paralelismo real es el número de procesos.
+
+### Sentinel-2C queda fuera de las alertas
+
+Al completar los nueve años de Tablas de Daimiel se vio que el sesgo del 11 y 21 de julio no era
+anecdótico, sino sistemático del satélite más nuevo. Por satélite, sobre esa serie:
+
+| Satélite | fechas descartadas por incoherencia | razón agua-índice / agua-ESA |
+|---|---|---|
+| S2A | 8 % | 0,84 |
+| S2B | 3 % | 0,78 |
+| S2C | 42 % | 0,47 |
+
+S2C, lanzado en septiembre de 2024, da un infrarrojo de onda corta sistemáticamente más alto, lo que
+hunde el MNDWI y hace desaparecer la mitad del agua. Mezclarlo con S2A y S2B produciría desecaciones
+falsas, así que `alerts.EXCLUDE_SATELLITES` lo aparta del cálculo hasta calibrar una corrección. Las
+fechas siguen en el CSV, solo no puntúan para las alertas.
 
 ### El caso de las escenas incoherentes
 

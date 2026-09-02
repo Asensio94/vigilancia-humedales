@@ -4,7 +4,8 @@ Dos familias de reglas:
 - Relativas al histórico: la última observación se compara con la distribución
   de observaciones de la misma época del año (±30 días) en años anteriores.
 - Absolutas: umbrales de literatura (NDCI > 0.20 indica floración algal intensa).
-Solo se evalúan observaciones con calidad "ok".
+Solo se evalúan observaciones con calidad "ok" y de satélites comparables entre sí
+(ver EXCLUDE_SATELLITES).
 """
 from __future__ import annotations
 
@@ -21,6 +22,22 @@ SEASON_WINDOW_DAYS = 30  # ventana estacional ±días
 RECENT_DAYS = 45         # ventana para detectar cambios bruscos
 CURRENT_DAYS = 20        # el "valor actual" es la mediana de las observaciones ok de estos días
 CURRENT_MIN_OBS = 2      # ...si hay al menos estas; si no, la última observación
+
+# Sentinel-2C queda fuera de las alertas hasta calibrarlo. Sobre la serie de nueve
+# años de Tablas de Daimiel, S2C descarta el 42 % de sus fechas por incoherencia
+# (S2A 8 %, S2B 3 %) y en las que pasan el filtro detecta la mitad de agua que la
+# clasificación de ESA (razón 0,47 frente a 0,78-0,84 de S2A y S2B): su SWIR sale
+# sistemáticamente más alto y hunde el MNDWI. Mezclarlo daría desecaciones falsas.
+EXCLUDE_SATELLITES = ("S2C",)
+
+
+def usable(series: pd.DataFrame) -> pd.DataFrame:
+    """Observaciones válidas y comparables entre sí."""
+    df = series[series["quality"] == "ok"]
+    if "scenes" in df and EXCLUDE_SATELLITES:
+        sat = df["scenes"].str.slice(0, 3)
+        df = df[~sat.isin(EXCLUDE_SATELLITES)]
+    return df.sort_values("date")
 
 
 @dataclass
@@ -55,7 +72,7 @@ def seasonal_reference(df: pd.DataFrame, when: date) -> pd.DataFrame:
 
 
 def evaluate(site: Site, series: pd.DataFrame) -> list[Alert]:
-    df = series[series["quality"] == "ok"].sort_values("date")
+    df = usable(series)
     if df.empty:
         return []
     when = df.iloc[-1]["date"]

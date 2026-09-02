@@ -1,6 +1,7 @@
 """CLI: python -m humedales.cli run --site tablas-daimiel --since 2026-06-01"""
 from __future__ import annotations
 
+import time
 from datetime import date, timedelta
 from typing import Optional
 
@@ -9,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from . import alerts as alerts_mod
+from . import backfill as backfill_mod
 from . import report, stac, store
 from .indices import observe
 from .sites import SITES, site_geometry
@@ -97,6 +99,37 @@ def run(
     if not no_report and results:
         html_path, json_path = report.write(results, today)
         console.print(f"\nInforme: {html_path}\nAlertas: {json_path}")
+
+
+@app.command()
+def backfill(
+    site: Optional[list[str]] = typer.Option(None, "--site", "-s", help="slug(s); por defecto todos"),
+    since: str = typer.Option("2017-07-01", help="Sentinel-2 L2A empieza a mediados de 2017"),
+    until: Optional[str] = typer.Option(None, help="YYYY-MM-DD; por defecto hoy"),
+    workers: Optional[int] = typer.Option(None, help="procesos en paralelo; por defecto según el tamaño del sitio"),
+    max_scene_cloud: float = typer.Option(60.0, help="nubosidad máxima de la escena completa (%)"),
+    force: bool = typer.Option(False, help="recalcula fechas ya guardadas"),
+):
+    """Carga el histórico completo. Reanudable: repite el comando y sigue donde se quedó."""
+    end = date.fromisoformat(until) if until else date.today()
+    start = date.fromisoformat(since)
+    t0 = time.time()
+    for s in _resolve_sites(site):
+        console.rule(f"[bold]{s.name}")
+        st = time.time()
+        for done, total, batch in backfill_mod.run(
+                s, start, end, max_scene_cloud, workers, force, log=console.print):
+            elapsed = time.time() - st
+            rate = elapsed / max(done, 1)
+            eta = timedelta(seconds=int(rate * (total - done)))
+            oks = sum(1 for o in batch if o.quality == "ok")
+            console.print(f"  {done}/{total} fechas · {oks}/{len(batch)} válidas en el lote · "
+                          f"{rate:.1f} s/fecha · quedan ~{eta}")
+        df = store.load(s.slug)
+        n_ok = int((df["quality"] == "ok").sum()) if not df.empty else 0
+        console.print(f"[green]{s.name}: {len(df)} fechas en la serie, {n_ok} válidas "
+                      f"({timedelta(seconds=int(time.time() - st))})")
+    console.print(f"\nTotal: {timedelta(seconds=int(time.time() - t0))}")
 
 
 @app.command("report")
