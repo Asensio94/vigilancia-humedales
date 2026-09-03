@@ -66,12 +66,20 @@ def resolution_for(site_slug: str) -> int:
     return config.RESOLUTION_BY_SITE.get(site_slug, config.RESOLUTION_M)
 
 
-def load_day(items: list[Item], geom, resolution_m: int | None = None) -> xr.Dataset:
+def crs_for(site_slug: str) -> str:
+    """Sistema proyectado en el que se mide este humedal; ver CRS_BY_COUNTRY."""
+    from .sites import SITES
+    site = SITES.get(site_slug)
+    return site.crs if site else config.WORK_CRS
+
+
+def load_day(items: list[Item], geom, resolution_m: int | None = None,
+             crs: str | None = None) -> xr.Dataset:
     poly = Geometry(geom, "EPSG:4326")
     ds = load(
         items,
         bands=config.BANDS,
-        crs=config.WORK_CRS,
+        crs=crs or config.WORK_CRS,
         resolution=resolution_m or config.RESOLUTION_M,
         geopolygon=poly,
         groupby="solar_day",
@@ -168,7 +176,7 @@ def observe(site_slug: str, day: date, items: list[Item], geom,
             with_rasters: bool = True) -> tuple[Observation, Rasters | None]:
     resolution_m = resolution_for(site_slug)
     pixel_ha = config.pixel_ha(resolution_m)
-    ds = load_day(items, geom, resolution_m)
+    ds = load_day(items, geom, resolution_m, crs_for(site_slug))
     inside = rasterize(Geometry(geom, "EPSG:4326"), ds.odc.geobox).values.astype(bool)
     n_site = int(inside.sum())
     site_ha = n_site * pixel_ha

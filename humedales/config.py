@@ -24,10 +24,15 @@ NATURA_URL = (
     "ProtectedSites/Natura2000Sites/MapServer/0/query"
 )
 
-# Sistema de referencia y resolución de trabajo. ETRS89 / UTM 30N cubre toda la
-# península (los sitios en huso 29 se reproyectan). 20 m es la resolución nativa
-# de SCL, B05 y B11, así que no se inventa detalle.
-WORK_CRS = "EPSG:25830"
+# Sistema de referencia y resolución de trabajo. Hay que proyectar a metros para
+# poder contar hectáreas, y el sistema se elige por país: ETRS89 / UTM 30N cubre toda
+# la península (los sitios en huso 29 se reproyectan) y Lambert-93 es el nacional
+# francés, que abarca los tres husos que ocupa Francia sin partir ningún humedal. Los
+# dos son conformes, así que distorsionan el área menos de una milésima: irrelevante
+# frente al tamaño del píxel. 20 m es la resolución nativa de SCL, B05 y B11, así que
+# no se inventa detalle.
+CRS_BY_COUNTRY = {"ES": "EPSG:25830", "FR": "EPSG:2154"}
+WORK_CRS = CRS_BY_COUNTRY["ES"]
 RESOLUTION_M = 20
 PIXEL_HA = (RESOLUTION_M**2) / 10_000  # 0.04 ha por píxel a 20 m
 
@@ -42,7 +47,11 @@ def pixel_ha(resolution_m: int) -> float:
 # el volumen se divide por cuatro y para láminas de esa escala no se pierde nada útil
 # (0,16 ha por píxel). En humedales pequeños y fragmentados como las Tablas la
 # resolución fina sí importa, y ahí se mantienen los 20 m.
-RESOLUTION_BY_SITE = {"donana": 40}
+# resolución de la propia laguna sí importa, y ahí se mantienen los 20 m. En Francia
+# la Camarga (113.000 ha), el Marais Poitevin (68.000 con sus dos códigos), la Brenne
+# y la Dombes están en ese mismo caso.
+RESOLUTION_BY_SITE = {"donana": 40, "camargue": 40, "marais-poitevin": 40,
+                      "brenne": 40, "dombes": 40}
 
 # Bandas Sentinel-2 (nombres Earth Search) → uso
 # La banda `cloud` (probabilidad de nube de Sen2Cor) se descartó a propósito: en Earth

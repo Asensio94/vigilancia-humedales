@@ -43,7 +43,7 @@ def sample_dates(site: Site, geom, start: date, end: date) -> dict:
     days = search_all(site, geom, start, end, max_scene_cloud=25.0)
     best: dict[tuple[int, int], tuple[float, date]] = {}
     for d, its in days.items():
-        if d.month not in WET_MONTHS:
+        if d.month not in (site.wet_months or WET_MONTHS):
             continue
         cloud = min(float(it.properties.get("eo:cloud_cover", 100)) for it in its)
         key = (d.year, d.month)
@@ -55,7 +55,8 @@ def sample_dates(site: Site, geom, start: date, end: date) -> dict:
 def build(site: Site, start: date, end: date, log=print) -> dict:
     geom = site_geometry(site)
     days = sample_dates(site, geom, start, end)
-    log(f"{site.name}: {len(days)} fechas candidatas de meses húmedos")
+    meses = ", ".join(str(mes) for mes in (site.wet_months or WET_MONTHS))
+    log(f"{site.name}: {len(days)} fechas candidatas de los meses {meses}")
 
     counts: np.ndarray | None = None
     inside: np.ndarray | None = None
