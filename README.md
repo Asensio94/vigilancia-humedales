@@ -248,13 +248,26 @@ error del prototipo).
   no un error: el agua bajo vegetación está en el filo del umbral MNDWI. El umbral adaptativo y la
   mediana móvil de las alertas lo amortiguan, pero no lo eliminan; para hectáreas absolutas fiables
   haría falta un composite de varias pasadas.
+- **Y no es solo cosa de humedales someros.** El Lac du Der es un embalse de 3.500 ha de agua abierta
+  y da el mismo salto entre finales de primavera y verano: el 1 de junio de 2021 medía 3.662 ha, el
+  16 medía 1.428 y el 26 volvía a 3.341, con cielo despejado en las tres fechas. Un embalse no
+  pierde 2.200 ha en dos semanas y las recupera en una. Lo que pasa es que esas hectáreas se mueven
+  a la clase de vegetación inundada: NDWI y la clase agua de ESA siguen dando 3.800-3.900 ha, y
+  `water_ha + wet_veg_ha` se queda plano en ≈3.900 ha de marzo a agosto. Medido sobre los meses 4 a 8
+  de los nueve años, la dispersión relativa es del 15,7 % en el agua abierta y del 7,6 % en la suma:
+  la mitad. La consecuencia práctica es que la línea discontinua de vegetación inundada de la
+  gráfica no es decorativa —cuando el agua abierta cae y ella sube, no ha pasado nada—, y que la
+  referencia estacional se ensancha, con lo que la alerta de desecación pierde sensibilidad ahí
+  antes que dar un falso positivo.
 - NDCI y NDTI son proxies; no están calibrados a mg/m³ ni NTU, y sus umbrales de literatura no valen
   en lagunas someras y salinas. Sirven para detectar anomalías,
   no para dar valores absolutos. Las Tablas viven con NDCI ≈ 0.15 de forma habitual en verano.
 - Las alertas relativas necesitan histórico: hasta tener varios años de serie solo funcionan las reglas
   absolutas y la de descenso brusco.
 - El contexto hidrológico medido en el suelo solo existe en Doñana, y la lluvia solo desde 2022. En el
-  resto de humedales las alertas se quedan sin explicación de campo.
+  resto de humedales las alertas se quedan sin explicación de campo. En Francia la red sí está
+  abierta —Hub'Eau publica piezometría e hidrometría nacionales sin clave, y hay 38 piezómetros
+  dentro de los seis humedales— pero todavía no está enganchada.
 - Las correcciones atmosféricas fallidas se detectan, pero no se corrigen: esas fechas se pierden. En
   Tablas de Daimiel son 97 de 475, la mayoría de S2C.
 - **Las medianas anuales no son comparables si el año está incompleto.** En el Mar Menor la mediana
@@ -265,9 +278,10 @@ error del prototipo).
 
 ## Siguientes pasos
 
-1. Terminar el histórico de los seis humedales y medir su área inundable (`mask`).
+1. Enganchar Hub'Eau como contexto de campo de los humedales franceses, que es la pieza que en el
+   lado español solo existe en Doñana.
 2. Ampliar el catálogo a la lista Ramsar española (76 sitios) y a las ZEPA de humedal.
-3. Notificaciones (correo/Telegram) y ejecución programada semanal.
+3. Notificaciones (correo/Telegram) cuando salta una alerta: hoy hay que entrar a mirar la página.
 4. Contraste con la capa Global Surface Water del JRC como validación externa del área inundable.
 5. Recuperar las fechas de espectro anómalo con una corrección atmosférica propia (DOS o similar)
    en vez de descartarlas.

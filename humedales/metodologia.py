@@ -147,6 +147,18 @@ MOTIVO_GRUESO = {
     "FR": "son cuatro escenas por fecha sobre un delta de más de cien mil hectáreas, y "
           "para una lámina de esa escala el píxel fino no añade nada",
 }
+# El caso con el que se explica el trasvase entre agua abierta y vegetación inundada.
+# Las cifras están medidas sobre la serie de cada uno y su derivación está en el README,
+# en Limitaciones conocidas; se citan aquí porque no son la clase de número que el
+# informe recalcula en cada pasada.
+PARPADEO = {
+    "ES": "En Tablas de Daimiel la lámina detectada pasó de 80 a 200 y a 26 ha en diez días "
+          "de agosto de 2026, con imágenes en color natural casi idénticas",
+    "FR": "El Lac du Der es un embalse de 3.500 ha de agua abierta y hace lo mismo: el 1 de "
+          "junio de 2021 medía 3.662 ha, el 16 medía 1.428 y el 26 volvía a 3.341, con "
+          "cielo despejado las tres veces, y un embalse no pierde 2.200 ha en dos semanas "
+          "para recuperarlas en una",
+}
 
 
 def _datos(results: dict | None, pais: str) -> dict:
@@ -166,6 +178,7 @@ def _datos(results: dict | None, pais: str) -> dict:
         "grande": grande.name,
         "grande_res": config.RESOLUTION_BY_SITE.get(grande.slug, config.RESOLUTION_M),
         "grande_motivo": MOTIVO_GRUESO[pais],
+        "parpadeo": PARPADEO[pais],
         "denom": denom.name,
         "recuento": (f"De las {_n(n_fechas)} fechas descargadas solo {_n(n_ok)} —un "
                      f"{_p(n_ok / n_fechas)}— llegan al informe. Ese filtro es" if n_fechas else
@@ -330,6 +343,12 @@ justo la pieza que en el lado español solo existe en Doñana.</p>"""),
   <li><b>NDTI y NDCI son proxies sin calibrar</b>: no hay unidades de turbidez ni miligramos de
       clorofila detrás, y sus umbrales de literatura no son transferibles a lagunas someras y
       salinas. Valen para comparar un humedal consigo mismo, no para dar cifras absolutas.</li>
+  <li><b>El agua abierta y la vegetación inundada se intercambian</b>: {d['parpadeo']}. Esas
+      hectáreas no desaparecen, cambian de clase: el agua bajo vegetación, o con algas en
+      superficie, queda en el filo del umbral y pasa a contarse como vegetación inundada, que es la
+      línea discontinua de la gráfica. Cuando una baja y la otra sube a la vez, no ha pasado nada
+      en el humedal. Por eso las alertas usan la mediana de las últimas observaciones y no la
+      última, y por eso las hectáreas de una fecha suelta no son una medida fiable de nada.</li>
   <li><b>Nueve años son pocos</b>: la referencia empieza en julio de 2017, cuando empieza el
       archivo de Sentinel-2 L2A. Un año excepcional puede parecer normal si solo hay ocho con los
       que compararlo.</li>
