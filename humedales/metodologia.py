@@ -11,7 +11,7 @@ documentado que ya no es el que se aplica es peor que no documentarlo.
 from __future__ import annotations
 
 from . import alerts as al
-from . import config, hydro
+from . import config, hydro, masks
 
 # Cada sigla que aparece en el informe, con lo que significa y para qué sirve aquí.
 # Las de índices llevan su fórmula porque todas tienen la misma forma, (A - B)/(A + B),
@@ -99,9 +99,50 @@ def _p(x: float) -> str:
     return f"{100 * x:.0f} %"
 
 
-def _bloques() -> list[tuple[str, str, str]]:
-    """(ancla, título, HTML) de cada apartado. Las cifras vienen de config y alerts."""
+def _n(v: float) -> str:
+    """Un entero con separador de miles español: 46.709."""
+    return f"{v:,.0f}".replace(",", ".")
+
+
+def _d(v: float, nd: int = 1) -> str:
+    """Un decimal con coma decimal española: 2,7. Se formatea el número, nunca la frase:
+    aplicar un replace a la frase entera convertiría también las comas gramaticales."""
+    return f"{v:.{nd}f}".replace(".", ",")
+
+
+def _recuento(results: dict | None) -> tuple[int, int]:
+    """Fechas descargadas y fechas que llegan al informe, sumando los seis humedales."""
+    if not results:
+        return 0, 0
+    total = ok = 0
+    for res in results.values():
+        df = res.get("series")
+        if df is None or df.empty:
+            continue
+        total += len(df)
+        ok += int((df["quality"] == "ok").sum())
+    return total, ok
+
+
+def _bloques(results: dict | None = None) -> list[tuple[str, str, str]]:
+    """(ancla, título, HTML) de cada apartado.
+
+    Ninguna cifra se escribe a mano: los umbrales salen de `config` y `alerts`, el
+    recuento de fechas de las propias series y las hectáreas de las máscaras medidas.
+    Un número que ya no es el que se aplica es peor que no documentarlo.
+    """
     donana_res = config.RESOLUTION_BY_SITE.get("donana", config.RESOLUTION_M)
+    n_fechas, n_ok = _recuento(results)
+    recuento = (f"De las {_n(n_fechas)} fechas descargadas solo {_n(n_ok)} —un "
+                f"{_p(n_ok / n_fechas)}— llegan al informe. Ese filtro es" if n_fechas else
+                "Cerca de la mitad de las fechas descargadas se descartan. El filtro es")
+    m = masks.load("donana") or {}
+    donana_ha = (f"El de Doñana son {_n(m['site_ha'])} ha que incluyen" if m else
+                 "El de Doñana incluye")
+    donana_inundable = (
+        f"En Doñana son {_n(m['floodable_ha'])} ha, {_d(m['site_ha'] / m['floodable_ha'])} veces "
+        "menos que el polígono" if m else
+        "En Doñana el área inundable es bastante menor que el polígono")
     return [
         ("que-se-mide", "Qué se mide, y con qué", f"""
 <p>Cada pocos días un satélite pasa por encima del humedal y mide cuánta luz devuelve el suelo en
@@ -134,7 +175,7 @@ salina de fondo claro y en una marisma cargada de materia orgánica.</p>
 —agua y no agua— que la imagen contiene. Con tres cautelas, porque un método automático también se
 equivoca:</p>
 <ul>
-  <li>hacen falta al menos {config.OTSU_MIN_PIXELS:,} píxeles válidos para que el histograma
+  <li>hacen falta al menos {_n(config.OTSU_MIN_PIXELS)} píxeles válidos para que el histograma
       signifique algo;</li>
   <li>la <b>separabilidad</b> (cuánta de la varianza total explica la partición) debe llegar a
       {config.OTSU_MIN_SEPARABILITY}: por debajo de eso no hay dos grupos, hay uno, y partirlo
@@ -146,8 +187,7 @@ equivoca:</p>
 un valor absurdo.</p>"""),
 
         ("calidad", "Qué fechas se tiran, y por qué", f"""
-<p>De las 3.968 fechas descargadas solo 2.221 —un {_p(2221 / 3968)}— llegan al informe. Ese filtro
-es la mitad del trabajo: una nube fina o una corrección atmosférica fallida no dan un error, dan un
+<p>{recuento} la mitad del trabajo: una nube fina o una corrección atmosférica fallida no dan un error, dan un
 número plausible y equivocado, que es mucho peor.</p>
 <ul>
   <li><b>Nubes</b>: las clases de nube de la SCL, más todo píxel con azul por encima de
@@ -169,14 +209,14 @@ un sesgo propio; en realidad el problema eran correcciones atmosféricas fallida
 tres satélites y solo son mucho más frecuentes en él. Detectar la causa permitió seguir usándolo en
 vez de vetarlo.</p>"""),
 
-        ("denominador", "Con qué se compara la superficie medida", """
+        ("denominador", "Con qué se compara la superficie medida", f"""
 <p>Decir «el humedal está al 16 % de su superficie» invita a una pregunta: ¿el 16 % de qué? El
-polígono Natura 2000 es un límite <em>administrativo</em>. El de Doñana son 128.265 ha que incluyen
+polígono Natura 2000 es un límite <em>administrativo</em>. {donana_ha}
 pinares, arenas y cultivos que no se inundan jamás, así que medir la lámina contra ese total no dice
 nada hidrológico.</p>
 <p>Por eso el denominador de este informe es el <b>área inundable</b>: la parte que ha llegado a
-tener agua alguna vez en nueve años, medida acumulando las fechas válidas de los meses húmedos. En
-Doñana son 46.709 ha, 2,7 veces menos que el polígono. El método se valida a sí mismo: al Mar Menor
+tener agua alguna vez en nueve años, medida acumulando las fechas válidas de los meses húmedos.
+{donana_inundable}. El método se valida a sí mismo: al Mar Menor
 le sale un 99 % de área inundable y un 96 % con agua permanente, que es exactamente lo que debe
 salir en una laguna costera.</p>"""),
 
@@ -238,9 +278,9 @@ instrumentos que no tienen nada que ver midiendo lo mismo, y coinciden.</p>"""),
     ]
 
 
-def section() -> str:
+def section(results: dict | None = None) -> str:
     """La sección completa, lista para insertar en el informe."""
-    bloques = _bloques()
+    bloques = _bloques(results)
     out = ['<h2 id="metodologia">Metodología</h2>',
            '<p class="indice">'
            + " · ".join(f'<a href="#{ancla}">{titulo}</a>' for ancla, titulo, _ in bloques)

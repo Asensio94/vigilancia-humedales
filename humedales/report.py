@@ -293,7 +293,7 @@ def render(results: dict[str, dict], run_date: date) -> str:
     map_html = overview_map(statuses)
     parts.append(f'<iframe srcdoc="{html.escape(map_html)}" '
                  'style="width:100%;height:520px;border:0"></iframe>')
-    parts.append(metodologia.section())
+    parts.append(metodologia.section(results))
     parts.append("</body></html>")
     return "\n".join(parts)
 
