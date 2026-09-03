@@ -64,29 +64,57 @@ jobs:
       - name: Publicar el informe
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           fecha=$(date -u +%Y-%m-%d)
-          mkdir -p publicar
+          rm -rf publicar && mkdir publicar
+
+          # Se parte de lo que ya está publicado. La rama es un solo commit que se
+          # reemplaza en cada pasada, así que reconstruirla desde cero borraría la
+          # página de un país que hoy no haya generado informe.
+          git -C publicar init -q -b gh-pages
+          git -C publicar config user.name "github-actions[bot]"
+          git -C publicar config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C publicar remote add origin "https://x-access-token:$TOKEN@github.com/$REPO.git"
+          # Se copia el árbol, no se mueve HEAD: con un `reset --soft` a FETCH_HEAD el
+          # commit siguiente tendría padre y la rama crecería un commit al día. Así
+          # HEAD sigue sin nacer y el commit sale huérfano, que es lo que se quiere.
+          if git -C publicar fetch -q --depth 1 origin gh-pages 2>/dev/null; then
+            git -C publicar checkout -q FETCH_HEAD -- . || true
+          else
+            echo "Primera publicación: no había rama gh-pages."
+          fi
+
           # Una página por país. España se queda en index.html: es la URL que ya
-          # estaba publicada y la que hay enlazada por ahí fuera.
-          cp "output/informe_ES_$fecha.html" publicar/index.html
-          cp "output/informe_FR_$fecha.html" publicar/france.html
-          cp "output/alertas_$fecha.json" publicar/alertas.json
-          cp "output/alertas_ES_$fecha.json" publicar/alertas_es.json
-          cp "output/alertas_FR_$fecha.json" publicar/alertas_fr.json
+          # estaba publicada y la que hay enlazada por ahí fuera. Se copia lo que
+          # exista y se avisa de lo que falte, en vez de abortar la publicación
+          # entera: si un país se queda sin ninguna fecha válida, mejor publicar el
+          # informe nuevo del otro y dejar el suyo como estaba ayer.
+          while read -r origen destino; do
+            if [ -f "output/$origen" ]; then
+              cp "output/$origen" "publicar/$destino"
+            else
+              echo "::warning::falta output/$origen; $destino se queda como estaba"
+            fi
+          done <<LISTA
+          informe_ES_$fecha.html index.html
+          informe_FR_$fecha.html france.html
+          alertas_$fecha.json alertas.json
+          alertas_ES_$fecha.json alertas_es.json
+          alertas_FR_$fecha.json alertas_fr.json
+          LISTA
+          if [ ! -f publicar/index.html ] && [ ! -f publicar/france.html ]; then
+            echo "::error::no hay ningún informe que publicar"; exit 1
+          fi
           touch publicar/.nojekyll
+
           cd publicar
-          git init -q -b gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -q -m "Informe del $fecha"
           # Un solo commit, siempre reemplazado: cada informe son 2 MB de gráficas
           # incrustadas y su histórico no aporta nada. Las series de las que sale sí
           # están versionadas en master.
-          git push -q --force \
-            "https://x-access-token:$TOKEN@github.com/${{ github.repository }}.git" \
-            gh-pages
+          git commit -q -m "Informe del $fecha"
+          git push -q --force origin HEAD:gh-pages
 
       # Las alertas del día, en la propia página de la ejecución: es donde se mira
       # cuando llega un correo de Actions diciendo que algo ha pasado.

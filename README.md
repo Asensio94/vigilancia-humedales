@@ -174,7 +174,17 @@ el mismo comando para volver a intentarlas.
 |---|---|---|
 | Earth Search v1 (Element 84, AWS) `sentinel-2-l2a` | catálogo STAC y COG de cada banda; histórico desde 2017 | público, sin clave |
 | EEA Natura 2000 (ArcGIS REST) | polígono de cada humedal por código de sitio | público |
+| OpenStreetMap Overpass | trazos `natural=coastline` para recortar el mar de los humedales costeros | público, exige `User-Agent` |
 | ICTS-Doñana Hidromet (`datos-automaticos.icts-donana.es`) | calado diario de la marisma y lluvia, medidos en el suelo | público, CC BY 4.0, 100 peticiones/hora por IP |
+
+**Los contornos van versionados, y eso es deliberado.** `data/sites/` guarda el polígono de cada
+humedal y la línea de costa con la que se recorta, y está en el repositorio en vez de ignorado.
+El motivo no es ahorrar dos peticiones al día: es que una serie de superficie de agua solo se
+puede comparar consigo misma si el contorno sobre el que se mide no se mueve. Si la EEA reajusta
+un polígono o alguien redibuja una playa en OSM, la lámina medida cambia sin que haya pasado nada
+en el humedal, y el salto entra en el histórico como si fuera real. Fijados en el repositorio, esa
+actualización es un cambio explícito (`site_geometry(..., refresh=True)`, y a rehacer la máscara)
+en vez de un accidente silencioso. De paso, el trabajo diario no depende de que Overpass conteste.
 
 Alternativas comprobadas: Microsoft Planetary Computer sirve el mismo producto (STAC público); Copernicus
 Data Space exige registro. El WFS de Ramsar (`rsis.ramsar.org/geoserver`) tiene un esquema no estándar

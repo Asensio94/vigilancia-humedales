@@ -1,7 +1,6 @@
 .venv/
 __pycache__/
 output/
-data/sites/
 publicar/
 *.pyc
 logs/
