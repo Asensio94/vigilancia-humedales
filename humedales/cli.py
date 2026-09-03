@@ -11,6 +11,7 @@ from rich.table import Table
 
 from . import alerts as alerts_mod
 from . import backfill as backfill_mod
+from . import masks as masks_mod
 from . import report, stac, store
 from .indices import observe
 from .sites import SITES, site_geometry
@@ -130,6 +131,28 @@ def backfill(
         console.print(f"[green]{s.name}: {len(df)} fechas en la serie, {n_ok} válidas "
                       f"({timedelta(seconds=int(time.time() - st))})")
     console.print(f"\nTotal: {timedelta(seconds=int(time.time() - t0))}")
+
+
+@app.command()
+def mask(
+    site: Optional[list[str]] = typer.Option(None, "--site", "-s", help="slug(s); por defecto todos"),
+    since: str = typer.Option("2017-07-01"),
+    until: Optional[str] = typer.Option(None),
+):
+    """Mide el área inundable de cada humedal, que es el denominador con sentido hidrológico."""
+    end = date.fromisoformat(until) if until else date.today()
+    start = date.fromisoformat(since)
+    for s in _resolve_sites(site):
+        console.rule(f"[bold]{s.name}")
+        try:
+            r = masks_mod.build(s, start, end, log=console.print)
+        except RuntimeError as exc:
+            console.print(f"[red]{exc}")
+            continue
+        pct = 100 * r["floodable_ha"] / r["site_ha"] if r["site_ha"] else 0
+        console.print(f"[green]{s.name}: inundable {r['floodable_ha']:.0f} ha de "
+                      f"{r['site_ha']:.0f} ha del sitio ({pct:.0f} %), "
+                      f"permanente {r['permanent_ha']:.0f} ha, {r['dates_used']} fechas")
 
 
 @app.command("report")

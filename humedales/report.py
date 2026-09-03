@@ -15,7 +15,7 @@ import pandas as pd
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-from . import config
+from . import config, hydro, masks
 from .alerts import Alert
 from .indices import Rasters
 from .sites import Site, site_geometry
@@ -32,12 +32,59 @@ def _fmt(v, nd=3) -> str:
     return "–" if v is None or pd.isna(v) else f"{v:.{nd}f}"
 
 
+def denominator(site: Site, df: pd.DataFrame) -> tuple[float, str]:
+    """Superficie con la que se compara la lámina medida.
+
+    El polígono Natura 2000 es un límite administrativo: en Doñana incluye pinares,
+    arenas y cultivos, así que "fracción del sitio" no dice nada hidrológico. Cuando
+    el comando `mask` ya ha medido qué parte del humedal llega a tener agua alguna
+    vez, ese es el denominador; si no, se cae al polígono completo.
+    """
+    floodable = masks.floodable_ha(site.slug)
+    if floodable:
+        return float(floodable), "área inundable"
+    if not df.empty and df["site_ha"].notna().any():
+        return float(df["site_ha"].dropna().iloc[-1]), "sitio Natura 2000"
+    return 0.0, "sitio Natura 2000"
+
+
+def hydro_series(site: Site, df: pd.DataFrame) -> tuple[pd.Series | None, pd.Series | None]:
+    """Calado y lluvia medidos en el suelo, para contrastar con lo que ve el satélite.
+
+    Nunca debe hacer fallar el informe: si el portal no responde o agota su límite de
+    peticiones se usa lo que haya en disco, y si no hay nada se devuelve nada.
+    """
+    if df.empty or not hydro.has_context(site.slug):
+        return None, None
+    dates = pd.to_datetime(df["date"])
+    start, end = dates.min().date(), dates.max().date()
+    level = rain = None
+    try:
+        lv = hydro.series(site, "waterLevel", start, end)
+        if not lv.empty:
+            level = lv.median(axis=1, skipna=True)   # mediana entre estaciones de la marisma
+            level.attrs.update(lv.attrs)
+        rn = hydro.series(site, "rainfallAccumulated", start, end)
+        if not rn.empty:
+            # La lluvia diaria es ruido a esta escala; el acumulado mensual sí se lee.
+            rain = rn.mean(axis=1, skipna=True).resample("MS").sum()
+            rain.attrs.update(rn.attrs)
+    except Exception:  # noqa: BLE001
+        pass
+    return level, rain
+
+
 def series_chart(site: Site, df: pd.DataFrame) -> str:
     ok = df[df["quality"] == "ok"].copy()
     other = df[df["quality"] != "ok"]
     ok["date"] = pd.to_datetime(ok["date"])
-    site_ha = float(df["site_ha"].iloc[-1]) if not df.empty else 0.0
-    fig, axes = plt.subplots(3, 1, figsize=(10, 7.5), sharex=True)
+    den, den_label = denominator(site, df)
+    level, rain = hydro_series(site, df)
+    with_hydro = level is not None or rain is not None
+    n = 4 if with_hydro else 3
+    heights = [2.2, 1.1, 1.1] + ([1.5] if with_hydro else [])
+    fig, axes = plt.subplots(n, 1, figsize=(10, 7.5 if n == 3 else 9.6), sharex=True,
+                             gridspec_kw={"height_ratios": heights})
     axes[0].plot(ok["date"], ok["water_ha"], "o-", color="#1f77b4", ms=3, lw=1, label="agua libre")
     if "wet_veg_ha" in ok:
         axes[0].plot(ok["date"], ok["wet_veg_ha"], "s--", color="#17becf", ms=3, lw=1,
@@ -47,13 +94,32 @@ def series_chart(site: Site, df: pd.DataFrame) -> str:
                         color="grey", s=18, label="descartadas (nubes, neblina, incoherentes)")
     axes[0].legend(loc="upper left", fontsize=8)
     axes[0].set_ylabel("Agua (ha)")
-    axes[0].set_title(f"{site.name}: superficie de agua. Sitio Natura 2000: {site_ha:,.0f} ha",
-                      fontsize=10)
+    axes[0].set_title(f"{site.name}: superficie de agua. {den_label[0].upper()}{den_label[1:]}: "
+                      f"{den:,.0f} ha", fontsize=10)
     axes[1].plot(ok["date"], ok["ndci_mean"], "o-", color="#2ca02c", ms=3, lw=1)
     axes[1].axhline(config.NDCI_BLOOM, color="red", ls="--", lw=0.8)
     axes[1].set_ylabel("NDCI medio\n(clorofila)")
     axes[2].plot(ok["date"], ok["ndti_mean"], "o-", color="#8c564b", ms=3, lw=1)
     axes[2].set_ylabel("NDTI medio\n(turbidez)")
+    if with_hydro:
+        ax = axes[3]
+        if rain is not None:
+            # La lluvia va detrás y a la derecha: es el forzamiento, no la medida.
+            ax2 = ax.twinx()
+            ax2.bar(rain.index, rain.values, width=22, color="#aecfe8", zorder=1,
+                    label="lluvia mensual")
+            ax2.set_ylabel("Lluvia\n(mm/mes)")
+            ax2.set_ylim(bottom=0)
+            ax2.set_zorder(ax.get_zorder() - 1)
+            ax.patch.set_visible(False)
+        if level is not None:
+            ax.plot(level.index, level.values, "-", color="#14496f", lw=1.2, zorder=3,
+                    label="calado medido en la marisma")
+            ax.set_ylabel("Calado (m)")
+            ax.legend(loc="upper left", fontsize=8)
+        else:
+            ax.set_yticks([])
+            ax2.legend(loc="upper left", fontsize=8)
     for ax in axes:
         ax.grid(alpha=0.3)
     fig.autofmt_xdate()
@@ -124,9 +190,14 @@ def render(results: dict[str, dict], run_date: date) -> str:
         f"<style>{CSS}</style></head><body>",
         "<h1>Vigilancia satelital de humedales protegidos</h1>",
         "<p><small>Sentinel-2 L2A (Earth Search / AWS), límites Natura 2000 (EEA). Informe generado el "
-        f"{run_date.isoformat()}. Agua libre: MNDWI &gt; 0 y NDVI &lt; 0.15 sobre píxeles sin nube. "
-        f"Clorofila: NDCI (B05, B04). Turbidez: NDTI (B04, B03). Resolución {config.RESOLUTION_M} m. "
-        "Las fechas con nubes, neblina o desacuerdo con la clasificación de ESA se descartan.</small></p>",
+        f"{run_date.isoformat()}. Agua libre: MNDWI por encima de un umbral calculado en cada fecha "
+        "sobre el propio histograma del humedal (Otsu, con reserva en 0 si las dos poblaciones no se "
+        f"separan) y NDVI &lt; {config.NDVI_OPEN_WATER}. Clorofila: NDCI (B05, B04). Turbidez: NDTI "
+        f"(B04, B03). Resolución {config.RESOLUTION_M} m, {config.RESOLUTION_BY_SITE.get('donana')} m "
+        "en Doñana. Se descartan las fechas con nubes, neblina, cobertura parcial, desacuerdo con la "
+        "clasificación de ESA o espectro no acuático sobre el agua (corrección atmosférica fallida). "
+        "Donde hay estaciones de campo se añade el calado medido en el suelo, que es independiente del "
+        f"satélite: {html.escape(hydro.SOURCE)}.</small></p>",
     ]
 
     parts.append("<h2>Resumen</h2><table><tr><th>Humedal</th><th>Última fecha válida</th>"
@@ -153,11 +224,13 @@ def render(results: dict[str, dict], run_date: date) -> str:
             parts.append("<p>Sin observaciones válidas en el periodo.</p>")
             continue
         n_ok = int((df["quality"] == "ok").sum())
+        den, den_label = denominator(site, df)
+        frac = latest["water_ha"] / den if den else float("nan")
         parts.append(
             '<div class="kpi">'
             f"<div><small>Última fecha válida</small><b>{latest['date']}</b></div>"
             f"<div><small>Agua</small><b>{latest['water_ha']:,.0f} ha</b>"
-            f"<small>{100 * latest['water_frac']:.0f} % del sitio</small></div>"
+            f"<small>{100 * frac:.0f} % del {den_label}</small></div>"
             f"<div><small>NDCI medio</small><b>{_fmt(latest['ndci_mean'])}</b></div>"
             f"<div><small>NDTI medio</small><b>{_fmt(latest['ndti_mean'])}</b></div>"
             f"<div><small>Nubes en el sitio</small><b>{100 * latest['cloud_frac']:.0f} %</b></div>"
@@ -171,6 +244,17 @@ def render(results: dict[str, dict], run_date: date) -> str:
             parts.append('<div class="ok">Sin alertas: valores dentro del rango de referencia.</div>')
         if res.get("chart_b64"):
             parts.append(f'<p><img src="data:image/png;base64,{res["chart_b64"]}"></p>')
+            notes = []
+            m = masks.load(slug)
+            if m:
+                notes.append(
+                    f"Área inundable {m['floodable_ha']:,.0f} ha de las {m['site_ha']:,.0f} ha del "
+                    f"sitio Natura 2000, de las cuales {m['permanent_ha']:,.0f} ha con agua casi "
+                    f"siempre; medida acumulando {m['dates_used']} fechas de meses húmedos.")
+            if hydro.has_context(slug):
+                notes.append(f"Calado y lluvia del panel inferior: {html.escape(hydro.SOURCE)}.")
+            if notes:
+                parts.append(f"<p><small>{' '.join(notes)}</small></p>")
         if res.get("image_b64"):
             parts.append(f'<p><img src="data:image/png;base64,{res["image_b64"]}"></p>')
 

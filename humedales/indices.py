@@ -61,13 +61,18 @@ class Rasters:
     geobox: object
 
 
-def load_day(items: list[Item], geom) -> xr.Dataset:
+def resolution_for(site_slug: str) -> int:
+    """Resolución de trabajo del humedal; ver RESOLUTION_BY_SITE en config."""
+    return config.RESOLUTION_BY_SITE.get(site_slug, config.RESOLUTION_M)
+
+
+def load_day(items: list[Item], geom, resolution_m: int | None = None) -> xr.Dataset:
     poly = Geometry(geom, "EPSG:4326")
     ds = load(
         items,
         bands=config.BANDS,
         crs=config.WORK_CRS,
-        resolution=config.RESOLUTION_M,
+        resolution=resolution_m or config.RESOLUTION_M,
         geopolygon=poly,
         groupby="solar_day",
         resampling={"scl": "nearest", "*": "average"},
@@ -136,14 +141,14 @@ def water_threshold(index: np.ndarray, valid: np.ndarray) -> tuple[float, str]:
 
 
 def water_spectrum(G: np.ndarray, NIR: np.ndarray, B: np.ndarray,
-                   seed: np.ndarray) -> tuple[float | None, float | None]:
+                   seed: np.ndarray, pixel_ha: float) -> tuple[float | None, float | None]:
     """Forma del espectro sobre la semilla de agua: cociente infrarrojo/verde y azul mediano.
 
     Sirve para detectar escenas cuya corrección atmosférica ha fallado sobre los
     objetivos oscuros, que es el defecto que hacía desaparecer láminas de agua
     perfectamente visibles. Ver la nota en config.
     """
-    if seed.sum() * config.PIXEL_HA < config.WATER_SPECTRUM_MIN_HA:
+    if seed.sum() * pixel_ha < config.WATER_SPECTRUM_MIN_HA:
         return None, None
     g = _stat(np.median, G, seed)
     n = _stat(np.median, NIR, seed)
@@ -161,10 +166,12 @@ def _stat(fn, arr, mask) -> float | None:
 
 def observe(site_slug: str, day: date, items: list[Item], geom,
             with_rasters: bool = True) -> tuple[Observation, Rasters | None]:
-    ds = load_day(items, geom)
+    resolution_m = resolution_for(site_slug)
+    pixel_ha = config.pixel_ha(resolution_m)
+    ds = load_day(items, geom, resolution_m)
     inside = rasterize(Geometry(geom, "EPSG:4326"), ds.odc.geobox).values.astype(bool)
     n_site = int(inside.sum())
-    site_ha = n_site * config.PIXEL_HA
+    site_ha = n_site * pixel_ha
 
     scl = ds["scl"].values
     nodata = (scl == config.SCL_NODATA) & inside
@@ -207,17 +214,17 @@ def observe(site_slug: str, day: date, items: list[Item], geom,
     else:
         ndti_mean = ndci_mean = ndci_p90 = bloom_frac = None
 
-    water_ha = n_water * config.PIXEL_HA
-    scl_water_ha = int(scl_water.sum()) * config.PIXEL_HA
+    water_ha = n_water * pixel_ha
+    scl_water_ha = int(scl_water.sum()) * pixel_ha
     incoherente = (scl_water_ha >= config.SCL_CHECK_MIN_HA
                    and water_ha < config.SCL_CHECK_RATIO * scl_water_ha)
 
     # La semilla para el control espectral es la clase agua de la ESA, que es
     # independiente de nuestros índices; si no la hay, se usa el agua propia.
     seed = scl_water & valid
-    if seed.sum() * config.PIXEL_HA < config.WATER_SPECTRUM_MIN_HA:
+    if seed.sum() * pixel_ha < config.WATER_SPECTRUM_MIN_HA:
         seed = water
-    water_nir_green, water_blue = water_spectrum(G, NIR, B, seed)
+    water_nir_green, water_blue = water_spectrum(G, NIR, B, seed, pixel_ha)
     espectro_anomalo = (
         (water_nir_green is not None and water_nir_green > config.WATER_NIR_GREEN_MAX)
         or (water_blue is not None and water_blue < config.WATER_BLUE_FLOOR)
@@ -249,8 +256,8 @@ def observe(site_slug: str, day: date, items: list[Item], geom,
         site_ha=round(site_ha, 1),
         water_ha=round(water_ha, 1),
         water_frac=round(n_water / max(int(valid.sum()), 1), 4),
-        wet_veg_ha=round(int(wet_veg.sum()) * config.PIXEL_HA, 1),
-        ndwi_water_ha=round(int(ndwi_water.sum()) * config.PIXEL_HA, 1),
+        wet_veg_ha=round(int(wet_veg.sum()) * pixel_ha, 1),
+        ndwi_water_ha=round(int(ndwi_water.sum()) * pixel_ha, 1),
         scl_water_ha=round(scl_water_ha, 1),
         ndti_mean=ndti_mean, ndci_mean=ndci_mean, ndci_p90=ndci_p90, bloom_frac=bloom_frac,
         quality=quality,

@@ -23,12 +23,14 @@ RECENT_DAYS = 45         # ventana para detectar cambios bruscos
 CURRENT_DAYS = 20        # el "valor actual" es la mediana de las observaciones ok de estos días
 CURRENT_MIN_OBS = 2      # ...si hay al menos estas; si no, la última observación
 
-# Sentinel-2C queda fuera de las alertas hasta calibrarlo. Sobre la serie de nueve
-# años de Tablas de Daimiel, S2C descarta el 42 % de sus fechas por incoherencia
-# (S2A 8 %, S2B 3 %) y en las que pasan el filtro detecta la mitad de agua que la
-# clasificación de ESA (razón 0,47 frente a 0,78-0,84 de S2A y S2B): su SWIR sale
-# sistemáticamente más alto y hunde el MNDWI. Mezclarlo daría desecaciones falsas.
-EXCLUDE_SATELLITES = ("S2C",)
+# Ningún satélite queda vetado. Sentinel-2C lo estuvo mientras el sesgo parecía suyo:
+# detectaba la mitad de agua que la clasificación de la ESA (razón 0,47 frente a 0,85
+# de S2A y S2B). Al medirlo sobre un núcleo fijo de agua se vio que no era un sesgo de
+# sensor sino una corrección atmosférica fallida, que afecta a los tres satélites con
+# la misma firma espectral y solo es mucho más frecuente en S2C. El control espectral
+# de indices.py la detecta por su causa, así que las escenas buenas de S2C ya entran:
+# su concordancia con la ESA es 0,92, la de S2A 1,09 y la de S2B 1,00.
+EXCLUDE_SATELLITES: tuple[str, ...] = ()
 
 
 def usable(series: pd.DataFrame) -> pd.DataFrame:

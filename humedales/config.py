@@ -29,6 +29,19 @@ WORK_CRS = "EPSG:25830"
 RESOLUTION_M = 20
 PIXEL_HA = (RESOLUTION_M**2) / 10_000  # 0.04 ha por píxel a 20 m
 
+
+def pixel_ha(resolution_m: int) -> float:
+    return (resolution_m**2) / 10_000
+
+
+# Los humedales grandes se cargan más gruesos. Doñana ocupa 50.000 ha a caballo de dos
+# husos, así que cada fecha son 4,5 escenas y unos 500 MB a 20 m: el histórico completo
+# salían casi seis horas, con lecturas truncadas por saturar el ancho de banda. A 40 m
+# el volumen se divide por cuatro y para láminas de esa escala no se pierde nada útil
+# (0,16 ha por píxel). En humedales pequeños y fragmentados como las Tablas la
+# resolución fina sí importa, y ahí se mantienen los 20 m.
+RESOLUTION_BY_SITE = {"donana": 40}
+
 # Bandas Sentinel-2 (nombres Earth Search) → uso
 # La banda `cloud` (probabilidad de nube de Sen2Cor) se descartó a propósito: en Earth
 # Search apunta a CLD_20m.jp2 en el bucket original `sentinel-s2-l2a`, que no es COG y
