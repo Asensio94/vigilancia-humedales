@@ -102,7 +102,7 @@ def series_chart(site: Site, df: pd.DataFrame) -> str:
     axes[2].plot(ok["date"], ok["ndti_mean"], "o-", color="#8c564b", ms=3, lw=1)
     axes[2].set_ylabel("NDTI medio\n(turbidez)")
     if with_hydro:
-        ax = axes[3]
+        ax, ax2 = axes[3], None
         if rain is not None:
             # La lluvia va detrás y a la derecha: es el forzamiento, no la medida.
             ax2 = ax.twinx()
@@ -116,10 +116,16 @@ def series_chart(site: Site, df: pd.DataFrame) -> str:
             ax.plot(level.index, level.values, "-", color="#14496f", lw=1.2, zorder=3,
                     label="calado medido en la marisma")
             ax.set_ylabel("Calado (m)")
-            ax.legend(loc="upper left", fontsize=8)
         else:
             ax.set_yticks([])
-            ax2.legend(loc="upper left", fontsize=8)
+        # Una sola leyenda con las dos series: viven en ejes distintos, así que hay que
+        # juntar las etiquetas a mano.
+        handles = ax.get_legend_handles_labels()
+        if ax2 is not None:
+            extra = ax2.get_legend_handles_labels()
+            handles = (handles[0] + extra[0], handles[1] + extra[1])
+        if handles[0]:
+            ax.legend(*handles, loc="upper left", fontsize=8)
     for ax in axes:
         ax.grid(alpha=0.3)
     fig.autofmt_xdate()
