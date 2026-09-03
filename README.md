@@ -79,7 +79,18 @@ trazos `natural=coastline` van orientados con la tierra a la izquierda. Se corta
 costa y se pincha a los dos lados de cada tramo: la pieza que acumula sondas del lado marino es el
 mar. Los dos lados, no uno: con uno solo, cinco tramos mal orientados bastaban para dar por mar las
 77.000 ha del delta entero. Recortadas 36.169 ha, la Camarga mide 20.538 ha de lámina el 2 de
-septiembre de 2026, que es lo que suman Vaccarès, los étangs inferiores y los salinos de Giraud.
+septiembre de 2026, que es lo que suman Vaccarès, los étangs inferiores y los salinos de Giraud, y
+su agua permanente medida son 19.742 ha: el mismo complejo. Al Marais Poitevin se le recortan 7.291
+ha del Atlántico y queda en 60.524. La ficha de cada humedal en `data/sites/` lleva ahora la
+propiedad `sea_clipped`, y una geometría cacheada que no coincida con la decisión vigente se
+rehace: la del Marais Poitevin se había guardado antes de que existiera el recorte, traía el
+Atlántico dentro y nada habría avisado.
+
+**Y una trampa que no tenía nada de costera: la resolución.** Los cuatro humedales franceses grandes
+se pusieron a 40 m por grandes, copiando lo de Doñana. Es correcto para la Camarga y falso para los
+otros tres, cuyo agua está en étangs de pocas hectáreas y en canales de metros: a 40 m se pierde
+entre el 14 y el 35 % de la lámina y, peor, se descartan fechas enteras por espectro anómalo. Está
+medido en *Resolución por humedal*, más abajo.
 
 **No hay humedales mareales, y es deliberado.** En la bahía del Mont-Saint-Michel, la del Somme, el
 golfo de Morbihan o Arcachon la superficie de agua a la hora del paso del satélite la manda la
@@ -201,7 +212,8 @@ error del prototipo).
 1. `sites.py`: catálogo de humedales con sus códigos Natura 2000; descarga y cachea la geometría.
 2. `stac.py`: busca escenas por bbox y fecha, agrupa por día solar, decide escala y offset por escena.
 3. `indices.py`: carga con `odc-stac` las bandas B02, B03, B04, B05, B08, B11 y SCL recortadas al
-   humedal, en ETRS89/UTM 30N a 20 m (40 m en Doñana, ver *Resolución por humedal*), y calcula por fecha:
+   humedal, proyectadas al sistema en metros de su país a 20 m (40 m en Doñana y la Camarga, ver
+   *Resolución por humedal*), y calcula por fecha:
    - cobertura y fracción nubosa dentro del humedal (clases SCL más azul > 0.22),
    - **neblina**: mediana de reflectancia azul de los píxeles válidos > 0.12 descarta la fecha
      (la SCL no detecta calimas finas que inflan el agua detectada x3),
@@ -417,9 +429,27 @@ comparar; el mensaje de la alerta lo dice cuando le pasa.
 
 Doñana ocupa 128.000 ha del polígono Natura 2000 a caballo de dos husos UTM, así que cada fecha son
 4,5 escenas y unos 500 MB a 20 m: el histórico completo iba camino de casi seis horas, con lecturas
-truncadas por saturar el ancho de banda. A 40 m el volumen se divide por cuatro y para láminas de esa
-escala no se pierde nada útil (0,16 ha por píxel). En humedales pequeños y fragmentados como las Tablas
-la resolución fina sí importa, y ahí se mantienen los 20 m: `config.RESOLUTION_BY_SITE`.
+truncadas por saturar el ancho de banda. A 40 m el volumen se divide por cuatro y para una marisma de
+esa escala no se pierde nada útil (0,16 ha por píxel).
+
+**Lo que decide no es el tamaño del humedal, sino el de su agua**, y la primera versión de los sitios
+franceses se equivocó en eso: puso a 40 m los cuatro grandes por grandes. Medido sobre la misma fecha
+a las dos resoluciones:
+
+| Humedal | Agua a 40 m | Agua a 20 m | | nir/verde a 40 m | a 20 m |
+|---|---|---|---|---|---|
+| Camarga | 29.931 ha | 30.160 ha | +0,8 % | 0,35 | 0,33 |
+| Grande Brenne | 3.287 ha | 3.759 ha | +14 % | 0,93 | 0,77 |
+| La Dombes | 3.193 ha | 3.945 ha | +24 % | 0,68 | 0,50 |
+| Marais Poitevin | 922 ha | 1.244 ha | +35 % | `espectro_anomalo` | `ok` |
+
+La Camarga es indiferente al píxel porque sus lagunas son mucho mayores que él. Los otros tres son
+étangs de pocas hectáreas y canales de metros, y ahí el píxel de borde promedia agua con orilla. Eso
+no solo pierde superficie: también sube el nir/verde de la semilla de agua hacia el techo de 1,10 del
+control espectral, con lo que el 40 m **descarta fechas enteras que a 20 m son válidas**. Al Marais
+Poitevin le valían solo 13 de 40 fechas candidatas para la máscara por ese motivo. Así que el grueso
+se queda para el agua grande y abierta —Doñana y la Camarga— y el resto va a 20 m:
+`config.RESOLUTION_BY_SITE`.
 
 ### El área inundable como denominador
 

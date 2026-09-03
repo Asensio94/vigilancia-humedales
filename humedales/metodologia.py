@@ -144,8 +144,9 @@ EJEMPLO_DENOMINADOR = {"ES": "donana", "FR": "dombes"}
 MOTIVO_GRUESO = {
     "ES": "necesita 4,5 escenas por fecha y a 20 m tardaba cuatro veces más sin cambiar "
           "el resultado",
-    "FR": "son cuatro escenas por fecha sobre un delta de más de cien mil hectáreas, y "
-          "para una lámina de esa escala el píxel fino no añade nada",
+    "FR": "son cuatro escenas por fecha sobre un delta cuyas lagunas son mucho mayores que "
+          "el píxel: medida la misma fecha a las dos resoluciones, la diferencia es del ocho "
+          "por mil",
 }
 # El caso con el que se explica el trasvase entre agua abierta y vegetación inundada.
 # Las cifras están medidas sobre la serie de cada uno y su derivación está en el README,

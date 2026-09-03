@@ -44,17 +44,23 @@ def pixel_ha(resolution_m: int) -> float:
     return (resolution_m**2) / 10_000
 
 
-# Los humedales grandes se cargan más gruesos. Doñana ocupa 50.000 ha a caballo de dos
-# husos, así que cada fecha son 4,5 escenas y unos 500 MB a 20 m: el histórico completo
-# salían casi seis horas, con lecturas truncadas por saturar el ancho de banda. A 40 m
-# el volumen se divide por cuatro y para láminas de esa escala no se pierde nada útil
-# (0,16 ha por píxel). En humedales pequeños y fragmentados como las Tablas la
-# resolución fina sí importa, y ahí se mantienen los 20 m.
-# resolución de la propia laguna sí importa, y ahí se mantienen los 20 m. En Francia
-# la Camarga (113.000 ha), el Marais Poitevin (68.000 con sus dos códigos), la Brenne
-# y la Dombes están en ese mismo caso.
-RESOLUTION_BY_SITE = {"donana": 40, "camargue": 40, "marais-poitevin": 40,
-                      "brenne": 40, "dombes": 40}
+# Algunos humedales se cargan más gruesos, y lo que decide no es su tamaño sino el de
+# su agua. Doñana ocupa 50.000 ha a caballo de dos husos, así que cada fecha son 4,5
+# escenas y unos 500 MB a 20 m: el histórico completo salían casi seis horas, con
+# lecturas truncadas por saturar el ancho de banda. A 40 m el volumen se divide por
+# cuatro y para una marisma de esa escala no se pierde nada útil (0,16 ha por píxel).
+#
+# El tamaño del humedal por sí solo engaña, y la primera versión de los sitios
+# franceses cayó en ello: puso a 40 m los cuatro grandes. Medido sobre la misma fecha
+# a 40 y a 20 m, la Camarga da 29.931 y 30.160 ha —ocho por mil, sus lagunas son mucho
+# mayores que el píxel— pero la Dombes da 3.193 y 3.945 (un 24 % más), la Brenne 3.287
+# y 3.759 (un 14 %) y el Marais Poitevin 922 y 1.244 (un 35 %). Son étangs de pocas
+# hectáreas y canales de metros: a 40 m el píxel de borde promedia agua con orilla, y
+# eso no solo pierde superficie, también sube el nir/verde de la semilla de agua y hace
+# que el control espectral descarte la fecha entera. El Marais Poitevin salía
+# `espectro_anomalo` a 40 m y `ok` a 20 en esa misma fecha, y de 40 candidatas solo 13
+# le valían para la máscara. Así que el grueso se queda para el agua grande y abierta.
+RESOLUTION_BY_SITE = {"donana": 40, "camargue": 40}
 
 # Bandas Sentinel-2 (nombres Earth Search) → uso
 # La banda `cloud` (probabilidad de nube de Sen2Cor) se descartó a propósito: en Earth
