@@ -80,6 +80,12 @@ correo de Actions. También se puede lanzar a mano desde la pestaña *Actions*.
 A las 06:20 y no a la hora del paso del satélite porque las escenas tardan varias horas en
 aparecer como L2A en el catálogo: pedirlas antes es pedirlas antes de que existan.
 
+Una fecha nueva de satélite llega cada varios días, y nunca el mismo día en los seis humedales, así
+que un informe diario solo podría dibujar uno de los seis mapas. La última imagen de cada humedal se
+guarda en `data/img/` y el informe la reutiliza los días sin escena nueva, con la fecha impresa
+dentro de la propia imagen para que no engañe. Entre ejecuciones viaja en la caché de Actions, y en
+el repositorio hay una copia como semilla para cuando la caché no está.
+
 Para publicar desde este equipo, sin esperar al cron:
 
 ```powershell
