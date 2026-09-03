@@ -15,7 +15,7 @@ import pandas as pd
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-from . import config, hydro, masks
+from . import config, hydro, masks, metodologia
 from .alerts import Alert
 from .indices import Rasters
 from .sites import Site, site_geometry
@@ -204,6 +204,10 @@ h1{font-size:1.5rem} h2{font-size:1.2rem;margin-top:2.5rem;border-bottom:1px sol
 .ok{border-left:5px solid #2ca02c;background:#f3fbf3;padding:.5rem .8rem}
 img{max-width:100%} small{color:#666}
 table{border-collapse:collapse;font-size:.85rem} td,th{border:1px solid #ddd;padding:.25rem .5rem}
+h3{font-size:1.02rem;margin:1.6rem 0 .3rem}
+.indice{font-size:.85rem;color:#555;line-height:1.7}
+.glosario dt{font-weight:600;margin-top:.7rem} .glosario dd{margin:.15rem 0 0 1.2rem;color:#444}
+#metodologia ~ p,#metodologia ~ ul li,.glosario dd{max-width:75ch;line-height:1.5}
 """
 
 
@@ -214,15 +218,12 @@ def render(results: dict[str, dict], run_date: date) -> str:
         f"<title>Vigilancia de humedales · {run_date.isoformat()}</title>",
         f"<style>{CSS}</style></head><body>",
         "<h1>Vigilancia satelital de humedales protegidos</h1>",
-        "<p><small>Sentinel-2 L2A (Earth Search / AWS), límites Natura 2000 (EEA). Informe generado el "
-        f"{run_date.isoformat()}. Agua libre: MNDWI por encima de un umbral calculado en cada fecha "
-        "sobre el propio histograma del humedal (Otsu, con reserva en 0 si las dos poblaciones no se "
-        f"separan) y NDVI &lt; {config.NDVI_OPEN_WATER}. Clorofila: NDCI (B05, B04). Turbidez: NDTI "
-        f"(B04, B03). Resolución {config.RESOLUTION_M} m, {config.RESOLUTION_BY_SITE.get('donana')} m "
-        "en Doñana. Se descartan las fechas con nubes, neblina, cobertura parcial, desacuerdo con la "
-        "clasificación de ESA o espectro no acuático sobre el agua (corrección atmosférica fallida). "
-        "Donde hay estaciones de campo se añade el calado medido en el suelo, que es independiente del "
-        f"satélite: {html.escape(hydro.SOURCE)}.</small></p>",
+        "<p><small>Sentinel-2 L2A (Earth Search / AWS), límites Natura 2000 (EEA). Informe "
+        f"generado el {run_date.isoformat()}. Superficie de agua, turbidez y clorofila medidas por "
+        "satélite cada pocos días; las alertas comparan cada humedal consigo mismo en la misma "
+        "época del año. Todo lo demás —qué mide cada índice, qué fechas se descartan, cómo se "
+        "decide una alerta y qué significa cada sigla— está en la "
+        "<a href=\"#metodologia\">metodología</a>, al final.</small></p>",
     ]
 
     parts.append("<h2>Resumen</h2><table><tr><th>Humedal</th><th>Última fecha válida</th>"
@@ -292,6 +293,7 @@ def render(results: dict[str, dict], run_date: date) -> str:
     map_html = overview_map(statuses)
     parts.append(f'<iframe srcdoc="{html.escape(map_html)}" '
                  'style="width:100%;height:520px;border:0"></iframe>')
+    parts.append(metodologia.section())
     parts.append("</body></html>")
     return "\n".join(parts)
 
