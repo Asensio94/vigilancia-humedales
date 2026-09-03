@@ -65,6 +65,50 @@ def _doy_distance(dates: pd.Series, when: date) -> pd.Series:
     return pd.concat([diff, 365 - diff], axis=1).min(axis=1)
 
 
+DROP_RATIO = 0.70            # caída mínima para considerar un descenso brusco
+DROP_MIN_HA = 20             # por debajo de esto los porcentajes no significan nada
+DROP_SEASON_PERCENTILE = 0.10   # y además tiene que ser peor que el 90 % de las caídas de la época
+DROP_MIN_SEASON_REF = 5      # mínimo de caídas históricas para poder comparar
+
+
+def drop_ratio(df: pd.DataFrame, when: date) -> tuple[float | None, float, float]:
+    """Cociente entre la lámina actual y la de las semanas anteriores, en una fecha dada.
+
+    Devuelve (cociente, valor actual, base). El cociente es None si no hay suficientes
+    observaciones a los dos lados de la ventana.
+    """
+    cur = df[(df["date"] >= when - timedelta(days=CURRENT_DAYS)) & (df["date"] <= when)]
+    prev = df[(df["date"] >= when - timedelta(days=RECENT_DAYS + CURRENT_DAYS))
+              & (df["date"] < when - timedelta(days=CURRENT_DAYS))]
+    if len(cur) < CURRENT_MIN_OBS or len(prev) < 2:
+        return None, 0.0, 0.0
+    last = float(pd.to_numeric(cur["water_ha"], errors="coerce").median())
+    base = float(pd.to_numeric(prev["water_ha"], errors="coerce").median())
+    if base < DROP_MIN_HA:
+        return None, last, base
+    return last / base, last, base
+
+
+def seasonal_drop_ratio(df: pd.DataFrame, when: date) -> tuple[float | None, int]:
+    """Cuánto suele caer la lámina en esta época del año, en años anteriores.
+
+    Sin esto la regla de descenso brusco avisa de la desecación estival de siempre: en
+    Gallocanta disparaba en 100 de 494 fechas, casi todas entre mayo y septiembre, y en
+    Tablas de Daimiel 28 de sus 44 disparos eran de agosto. Una laguna endorreica que se
+    seca cada verano no es una noticia; lo es que se seque antes o más deprisa que de
+    costumbre. Se devuelve el percentil de las caídas históricas de estas fechas, así que
+    solo salta lo que es peor que el 90 % de los años.
+    """
+    hist = df[df["date"] < when - timedelta(days=SEASON_WINDOW_DAYS)]
+    if hist.empty:
+        return None, 0
+    same_season = hist[_doy_distance(hist["date"], when) <= SEASON_WINDOW_DAYS]
+    ratios = [r for d in same_season["date"] if (r := drop_ratio(df, d)[0]) is not None]
+    if len(ratios) < DROP_MIN_SEASON_REF:
+        return None, len(ratios)
+    return float(pd.Series(ratios).quantile(DROP_SEASON_PERCENTILE)), len(ratios)
+
+
 def seasonal_reference(df: pd.DataFrame, when: date) -> pd.DataFrame:
     """Observaciones ok de años anteriores dentro de ±SEASON_WINDOW_DAYS del día del año."""
     hist = df[df["date"] < when - timedelta(days=SEASON_WINDOW_DAYS)]
@@ -103,19 +147,22 @@ def evaluate(site: Site, series: pd.DataFrame) -> list[Alert]:
                 f"histórico para estas fechas ({p10:.0f} ha; mediana {med:.0f} ha, n={len(ref)}).",
                 float(last["water_ha"]), p10))
 
-    # --- Descenso brusco respecto a las semanas anteriores ------------------
+    # --- Descenso brusco, comparado con lo que cae de normal en esta época ---
     if not site.permanent_water:
-        recent = df[(df["date"] >= when - timedelta(days=RECENT_DAYS + CURRENT_DAYS))
-                    & (df["date"] < when - timedelta(days=CURRENT_DAYS))]
-        if len(recent) >= 2:
-            base = float(recent["water_ha"].median())
-            if base >= 20 and last["water_ha"] < 0.7 * base:
+        ratio, cur_ha, base = drop_ratio(df, when)
+        if ratio is not None and ratio < DROP_RATIO:
+            season, n_ref = seasonal_drop_ratio(df, when)
+            usual = season is not None and ratio >= season
+            if not usual:
+                extra = (f" Lo habitual en estas fechas es caer a lo sumo un "
+                         f"{100 * (1 - season):.0f} % (n={n_ref})." if season is not None else
+                         " Todavía no hay histórico de esta época con el que comparar la caída.")
                 alerts.append(Alert(
                     site.slug, when, "descenso_brusco", "media",
-                    f"La lámina de agua ha caído a {last['water_ha']:.0f} ha (mediana de {n_cur} obs.) desde una mediana "
-                    f"de {base:.0f} ha en los {RECENT_DAYS} días anteriores "
-                    f"({100 * (1 - last['water_ha'] / base):.0f} % menos).",
-                    float(last["water_ha"]), base))
+                    f"La lámina de agua ha caído a {cur_ha:.0f} ha (mediana de {n_cur} obs.) desde una "
+                    f"mediana de {base:.0f} ha en los {RECENT_DAYS} días anteriores "
+                    f"({100 * (1 - ratio):.0f} % menos).{extra}",
+                    cur_ha, base))
 
     # --- Eutrofización: umbral absoluto y desviación del histórico -----------
     ndci = last["ndci_mean"]

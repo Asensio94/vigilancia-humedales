@@ -7,10 +7,25 @@ serie histórica del mismo humedal en la misma época del año.
 
 ## Estado
 
-Prototipo v0.1 (3 de septiembre de 2026). Funciona de extremo a extremo sin ninguna clave de acceso.
-Serie histórica completa de Tablas de Daimiel: 475 fechas entre julio de 2017 y septiembre de 2026,
-259 válidas con los controles de calidad actuales. Reproduce la sequía documentada de La Mancha y su
-recuperación; mediana anual de agua libre en hectáreas:
+Prototipo v0.1 (3 de septiembre de 2026). Funciona de extremo a extremo sin ninguna clave de acceso, y
+los **seis humedales tienen ya el histórico completo** de julio de 2017 a septiembre de 2026, cargado
+sin una sola fecha perdida por error de red:
+
+| Humedal | fechas | válidas | agua libre 2017 → 2026 (mediana anual, ha) |
+|---|---|---|---|
+| Tablas de Daimiel | 475 | 259 | 236 → 248, con el fondo en 26 (2023) |
+| Mar Menor | 553 | 357 | 13.336 → 13.184, estable |
+| l'Albufera de València | 493 | 350 | 9.129 → 9.072, estable |
+| Fuente de Piedra | 960 | 420 | 200 → 1.014, muy variable |
+| Gallocanta | 889 | 494 | 441 → 811, con el fondo en 237 (2025) |
+| Doñana | 598 | 341 | 7.528 → 11.159, creciendo desde 2024 |
+
+Los dos humedales pequeños salen con casi el doble de fechas porque caen en el solape de varias
+órbitas. Las cifras de l'Albufera incluyen el arrozal inundado del sitio Natura 2000, no solo la
+laguna, que son unas 2.300 ha: para esa laguna la métrica que importa es la del área inundable.
+
+La serie de Tablas de Daimiel reproduce la sequía documentada de La Mancha y su recuperación; mediana
+anual de agua libre en hectáreas:
 
 | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 |
 |---|---|---|---|---|---|---|---|---|---|
@@ -26,10 +41,11 @@ El fondo de la sequía en 2023 y la recuperación de 2025-2026 coinciden con el 
 suelo en la marisma de Doñana (máximos anuales de 0,18 m en 2023 y 1,10 m en 2026), que es una fuente
 independiente del satélite: ver *Contexto hidrológico*.
 
-Mar Menor también completo: 553 fechas, 357 válidas. Su lámina permanente sirve de control de la
-medida absoluta, porque no debería moverse: sale entre 12.950 y 13.340 ha de mediana anual en nueve
-años, frente a las 13.500 ha que se citan habitualmente para la laguna. El resto de humedales está en
-carga (`backfill`).
+Y hay dos controles de que las hectáreas absolutas significan algo, no solo sus variaciones. El
+primero es el Mar Menor, cuya lámina permanente no debería moverse: sale entre 12.950 y 13.340 ha de
+mediana anual en nueve años, frente a las 13.500 ha que se citan habitualmente para la laguna. El
+segundo es la correlación de 0,94 entre el área inundada de Doñana y el calado medido en el suelo en
+la marisma, sobre 168 fechas (ver *Contexto hidrológico*).
 
 ## Uso
 
@@ -112,7 +128,9 @@ error del prototipo).
    (mínimo 2), no la última pasada, para amortiguar el parpadeo entre órbitas. Reglas:
    - **desecación** (alta): agua libre por debajo del percentil 10 de las observaciones de años anteriores
      en ±30 días del mismo día del año (mínimo 5 observaciones de referencia);
-   - **descenso brusco** (media): agua libre < 70 % de la mediana de los 45 días previos a la ventana actual;
+   - **descenso brusco** (media): agua libre < 70 % de la mediana de los 45 días previos a la ventana
+     actual, **y** además una caída peor que el 90 % de las caídas registradas en esa misma época del
+     año (ver *Una laguna que se seca cada verano no es noticia*);
    - **eutrofización** (alta): NDCI medio > 0.20 (unos 40 mg/m³ de clorofila-a según Mishra & Mishra 2012)
      o > 50 % del agua libre con NDCI > 0.20; (media): NDCI por encima del percentil 90 histórico estacional;
    - **turbidez** (media): NDTI por encima del percentil 90 histórico estacional.
@@ -217,6 +235,33 @@ las alertas: su concordancia con la ESA es 0,92. En Tablas de Daimiel el cambio 
 
 Atacar la causa en vez del síntoma es lo que permitió recuperar el satélite en vez de perderlo.
 
+### Una laguna que se seca cada verano no es noticia
+
+Al cargar el histórico de los seis humedales apareció el defecto de la regla de descenso brusco: como
+solo comparaba con las semanas anteriores, avisaba de la desecación estival de siempre. Con las series
+completas disparaba en 100 de las 494 fechas de Gallocanta, y 28 de los 44 disparos de Tablas de
+Daimiel eran de agosto. Una alerta que salta cada verano no la lee nadie.
+
+Ahora la caída se compara además con lo que cae la lámina en esa misma época del año en años
+anteriores, y solo salta si es peor que el 90 % de ellas. Desde 2022, cuando ya hay histórico con el
+que comparar:
+
+| Humedal | disparos antes | ahora | años en que salta |
+|---|---|---|---|
+| Fuente de Piedra | 9 | 3 | 2026 |
+| Gallocanta | 20 | 8 | 2025 |
+| Tablas de Daimiel | 19 | 9 | 2022, 2023 |
+| Doñana | 9 | 9 | 2023, 2025, 2026 |
+
+Un tercio de los avisos, y concentrados donde deben: Gallocanta salta en 2025, que es su año más seco
+de la serie (mediana de 237 ha), y Tablas de Daimiel en 2022 y 2023, el fondo de la sequía de La
+Mancha. En Doñana no cambia nada porque sus caídas ya eran atípicas. La alerta que Fuente de Piedra
+tenía activa en septiembre de 2026 desaparece: había caído de 1.100 a 330 ha, pero no más deprisa que
+en otros agostos.
+
+Los primeros años de cada serie siguen dando avisos que en régimen no darían, porque no hay con qué
+comparar; el mensaje de la alerta lo dice cuando le pasa.
+
 ### Resolución por humedal
 
 Doñana ocupa 128.000 ha del polígono Natura 2000 a caballo de dos husos UTM, así que cada fecha son
@@ -243,6 +288,23 @@ CSIC) publica en abierto el calado diario de la marisma y la lluvia de sus estac
 medida hecha en el suelo, independiente del satélite, y confirma la serie: máximos anuales de calado
 de 0,24 m en 2022, 0,18 en 2023, 0,38 en 2024, 1,00 en 2025 y 1,10 m en 2026, es decir el mismo fondo
 de sequía en 2023 y la misma recuperación que ve Sentinel-2.
+
+**La validación cruzada sale bien.** Sobre las 168 fechas en que hay a la vez observación válida de
+Sentinel-2 y calado medido en la marisma (2022-2026), la correlación entre el área inundada total
+(agua libre más vegetación inundada) y el calado es de 0,94 (Pearson; 0,78 de Spearman). Y la relación
+es monótona por tramos de calado, que es lo que de verdad importa para una alerta:
+
+| Calado medido en la marisma | Agua libre (ha) | Área inundada (ha) | fechas |
+|---|---|---|---|
+| menos de 5 cm | 8.058 | 8.386 | 73 |
+| 5 a 20 cm | 8.999 | 9.835 | 53 |
+| 20 a 50 cm | 10.444 | 12.812 | 24 |
+| más de 50 cm | 18.085 | 28.413 | 18 |
+
+Que con la marisma casi seca el satélite siga viendo 8.000 ha no es un error: el polígono incluye
+lucios permanentes, salinas y el estuario del Guadalquivir, mientras la estación mide en un punto de
+la marisma. Lo que valida el método es que la señal suba con el calado, y que la vegetación inundada
+sea la que más se mueve, porque es la parte de la marisma que se encharca y se seca.
 
 Tres cosas que costaron encontrar:
 
