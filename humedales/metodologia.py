@@ -17,10 +17,15 @@ from .sites import SITES
 # Cada sigla que aparece en el informe, con lo que significa y para qué sirve aquí.
 # Las de índices llevan su fórmula porque todas tienen la misma forma, (A - B)/(A + B),
 # y verlo una vez ahorra explicar cinco veces lo mismo.
-GLOSARIO: list[tuple[str, str, str]] = [
+#
+# El glosario también depende del país, y no como adorno: el sistema de coordenadas es
+# otro, el código de ejemplo de Natura 2000 es otro y las tres entradas sobre la red de
+# la ICTS solo significan algo donde hay medida de campo. Las que cambian se generan en
+# `_glosario`; aquí quedan las que valen igual en los dos.
+GLOSARIO_COMUN: list[tuple[str, str, str]] = [
     ("Sentinel-2", "—",
      "Pareja de satélites de la Agencia Espacial Europea, más un tercero desde 2024, que "
-     "fotografían toda la Península cada 5 días con píxeles de 10 a 20 m. Son gratuitos y "
+     "fotografían Europa entera cada 5 días con píxeles de 10 a 20 m. Son gratuitos y "
      "públicos, y de ahí sale todo lo que hay en este informe."),
     ("L2A", "Level-2A",
      "El nivel de proceso de la imagen: reflectancia <em>de superficie</em>, ya descontada la "
@@ -65,15 +70,10 @@ GLOSARIO: list[tuple[str, str, str]] = [
      "El catálogo por el que se buscan las imágenes y el formato en el que están guardadas. El "
      "COG permite descargar solo el recorte del humedal en vez de la escena entera, que son "
      "cientos de megas."),
-    ("Natura 2000", "—",
-     "La red europea de espacios protegidos. Sus polígonos oficiales son el contorno con el que "
-     "se recorta cada humedal; cada sitio tiene un código como ES0000024."),
-    ("Ramsar", "—",
-     "Convenio internacional de 1971 sobre humedales de importancia internacional. España tiene "
-     "76 sitios inscritos; los seis de este informe están entre ellos."),
-    ("ETRS89 / UTM 30N / EPSG:25830", "—",
-     "El sistema de coordenadas en el que se trabaja: metros, no grados. Es lo que permite hablar "
-     "de hectáreas con sentido, porque cada píxel mide lo mismo en toda la imagen."),
+]
+
+# Y lo que se dice después de ellas, ya sobre cómo se mide y cómo se compara.
+GLOSARIO_MEDIDA: list[tuple[str, str, str]] = [
     ("ha", "hectárea",
      "10.000 m², una parcela de 100 × 100 m. A 20 m de píxel cada píxel son 0,04 ha; a 40 m, "
      "0,16 ha."),
@@ -82,6 +82,10 @@ GLOSARIO: list[tuple[str, str, str]] = [
      "todas las alertas de este informe se definen así: no con un umbral absoluto, sino "
      "preguntando si el valor de hoy está entre los peores de lo que ese humedal suele dar en "
      "estas fechas."),
+]
+
+# Las de la red de campo: solo significan algo en el informe donde esa red se usa.
+GLOSARIO_CAMPO: list[tuple[str, str, str]] = [
     ("ICTS", "Infraestructura Científica y Técnica Singular",
      "La categoría oficial de las grandes instalaciones científicas españolas. La ICTS-Doñana, de "
      "la Estación Biológica de Doñana (CSIC), es la que publica el calado medido dentro de la "
@@ -93,6 +97,14 @@ GLOSARIO: list[tuple[str, str, str]] = [
      "Licencia que permite reutilizar los datos, incluso comercialmente, con la única condición "
      "de citar la fuente."),
 ]
+
+# Lo que el Convenio de Ramsar significa en cada país. El Lac du Der no está inscrito
+# por sí mismo: forma parte del sitio «Etangs de la Champagne humide», de ahí el
+# «dentro de» en vez del «sitios» del lado español.
+RAMSAR = {
+    "ES": "España tiene 76 sitios inscritos; los seis de este informe están entre ellos.",
+    "FR": "Los seis humedales de este informe están dentro de sitios inscritos por Francia.",
+}
 
 
 def _p(x: float) -> str:
@@ -335,14 +347,35 @@ justo la pieza que en el lado español solo existe en Doñana.</p>"""),
     ]
 
 
-# Prosa por idioma. Traducir el informe es escribir un `_bloques_fr` con los mismos
-# apartados leyendo el mismo `_datos`: la prosa está separada del cálculo a propósito.
-PROSA = {"es": _bloques}
+def _glosario(pais: str = "ES") -> list[tuple[str, str, str]]:
+    """El glosario del informe de ese país, en español."""
+    ejemplo = next(s.natura_codes[0] for s in SITES.values() if s.country == pais)
+    crs = config.CRS_BY_COUNTRY[pais]
+    del_pais = [
+        ("Natura 2000", "—",
+         "La red europea de espacios protegidos. Sus polígonos oficiales son el contorno con el "
+         f"que se recorta cada humedal; cada sitio tiene un código como {ejemplo}."),
+        ("Ramsar", "—",
+         "Convenio internacional de 1971 sobre humedales de importancia internacional. "
+         + RAMSAR[pais]),
+        (f"{config.CRS_NAMES[crs]} / {crs}", "—",
+         "El sistema de coordenadas en el que se trabaja: metros, no grados. Es lo que permite "
+         "hablar de hectáreas con sentido, porque cada píxel mide lo mismo en toda la imagen."),
+    ]
+    campo = GLOSARIO_CAMPO if pais == "ES" else []
+    return GLOSARIO_COMUN + del_pais + GLOSARIO_MEDIDA + campo
+
+
+# Prosa por idioma, apartados y glosario. Traducir el informe es escribir un
+# `_bloques_fr` y un `_glosario_fr` con los mismos apartados y siglas leyendo el mismo
+# `_datos`: la prosa está separada del cálculo a propósito.
+PROSA = {"es": (_bloques, _glosario)}
 
 
 def section(results: dict | None = None, pais: str = "ES", idioma: str = "es") -> str:
     """La sección completa, lista para insertar en el informe."""
-    bloques = [b for b in PROSA[idioma](results, pais) if b[0]]
+    prosa, glosario = PROSA[idioma]
+    bloques = [b for b in prosa(results, pais) if b[0]]
     out = ['<h2 id="metodologia">Metodología</h2>',
            '<p class="indice">'
            + " · ".join(f'<a href="#{ancla}">{titulo}</a>' for ancla, titulo, _ in bloques)
@@ -351,7 +384,7 @@ def section(results: dict | None = None, pais: str = "ES", idioma: str = "es") -
         out.append(f'<h3 id="{ancla}">{titulo}</h3>{cuerpo}')
 
     out.append('<h3 id="glosario">Glosario de siglas</h3><dl class="glosario">')
-    for sigla, expansion, texto in GLOSARIO:
+    for sigla, expansion, texto in glosario(pais):
         exp = "" if expansion == "—" else f" <i>{expansion}</i>"
         out.append(f"<dt>{sigla}{exp}</dt><dd>{texto}</dd>")
     out.append("</dl>")

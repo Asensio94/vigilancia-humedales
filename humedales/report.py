@@ -208,9 +208,19 @@ def latest_image(site: Site, when: date, r: Rasters) -> str:
 
 
 def overview_map(statuses: dict[str, tuple[Site, list[Alert]]]) -> str:
-    m = folium.Map(location=[39.5, -3.5], zoom_start=6, tiles="CartoDB positron")
+    """Mapa de situación, encuadrado sobre los humedales que se pintan.
+
+    El encuadre se calcula, no se fija: con un centro escrito a mano el mapa del
+    informe francés abría sobre La Mancha.
+    """
+    m = folium.Map(tiles="CartoDB positron")
+    caja = None
     for slug, (site, alerts) in statuses.items():
         geom = site_geometry(site)
+        minx, miny, maxx, maxy = geom.bounds
+        caja = ((min(caja[0], minx), min(caja[1], miny),
+                 max(caja[2], maxx), max(caja[3], maxy)) if caja else
+                (minx, miny, maxx, maxy))
         if any(a.severity == "alta" for a in alerts):
             color = "#d62728"
         elif alerts:
@@ -223,6 +233,8 @@ def overview_map(statuses: dict[str, tuple[Site, list[Alert]]]) -> str:
                                                 "fillOpacity": 0.35},
             tooltip=f"{site.name}: {len(alerts)} alerta(s)",
         ).add_to(m)
+    if caja:
+        m.fit_bounds([[caja[1], caja[0]], [caja[3], caja[2]]])
     return m.get_root().render()
 
 

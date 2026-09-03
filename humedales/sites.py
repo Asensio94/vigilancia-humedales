@@ -82,9 +82,14 @@ SITES: dict[str, Site] = {
              country="FR"),
         Site("dombes", "La Dombes", ("FR8201635",), "Auvernia-Ródano-Alpes",
              "Un millar de étangs en rotación de inundación y cultivo (evolage y "
-             "assec). El polígono son 47.659 ha con los étangs dispersos dentro, así "
-             "que el área inundable medida es aquí más necesaria que en ningún otro.",
-             country="FR", wet_months=(1, 2, 3, 4, 5)),
+             "assec). El polígono es una comarca entera con los étangs dispersos "
+             "dentro, así que el área inundable medida es aquí más necesaria que en "
+             "ningún otro.",
+             # La ventana empieza en noviembre porque el evolage se llena en otoño, y
+             # falta niebla: con los meses 1 a 5 solo 11 de 45 fechas pasaban el
+             # control de calidad, la mitad que en cualquier otro humedal, y un
+             # área inundable medida con once fechas se queda corta por definición.
+             country="FR", wet_months=(11, 12, 1, 2, 3, 4, 5)),
     ]
 }
 
@@ -110,7 +115,13 @@ def site_geometry(site: Site, refresh: bool = False):
     path = config.SITES_DIR / f"{site.slug}.geojson"
     if path.exists() and not refresh:
         with path.open(encoding="utf-8") as fh:
-            return shape(json.load(fh)["geometry"])
+            guardado = json.load(fh)
+        # La caché se rehace si se guardó con otra decisión sobre el mar. Marais
+        # Poitevin quedó en disco antes de que existiera el recorte, y su polígono
+        # traía el Atlántico dentro: la máscara se habría construido sobre eso sin
+        # que nada avisara, porque un fichero cacheado no dice con qué código se hizo.
+        if guardado["properties"].get("sea_clipped", False) == site.sea_in_polygon:
+            return shape(guardado["geometry"])
     geoms = []
     names = []
     for code in site.natura_codes:

@@ -32,6 +32,9 @@ NATURA_URL = (
 # frente al tamaño del píxel. 20 m es la resolución nativa de SCL, B05 y B11, así que
 # no se inventa detalle.
 CRS_BY_COUNTRY = {"ES": "EPSG:25830", "FR": "EPSG:2154"}
+# El nombre con el que cada uno se conoce, para poder nombrarlo en el informe sin
+# escribir el código EPSG a mano en el texto.
+CRS_NAMES = {"EPSG:25830": "ETRS89 / UTM 30N", "EPSG:2154": "RGF93 / Lambert-93"}
 WORK_CRS = CRS_BY_COUNTRY["ES"]
 RESOLUTION_M = 20
 PIXEL_HA = (RESOLUTION_M**2) / 10_000  # 0.04 ha por píxel a 20 m
