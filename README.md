@@ -5,6 +5,10 @@ humedales protegidos españoles (Doñana, Mar Menor, Tablas de Daimiel, l'Albufe
 Gallocanta) y dispara **alertas** de desecación o eutrofización comparando cada observación con la
 serie histórica del mismo humedal en la misma época del año.
 
+**El último informe está publicado en https://asensio94.github.io/vigilancia-humedales/**, y sus
+alertas en formato legible por programa en
+[`alertas.json`](https://asensio94.github.io/vigilancia-humedales/alertas.json).
+
 ## Estado
 
 Prototipo v0.1 (3 de septiembre de 2026). Funciona de extremo a extremo sin ninguna clave de acceso, y
@@ -61,6 +65,19 @@ la marisma, sobre 168 fechas (ver *Contexto hidrológico*).
 Genera `output/informe_<fecha>.html` (resumen, alertas, gráficas de serie, imagen de la última fecha,
 mapa) y `output/alertas_<fecha>.json`. Las series viven en `data/series/<humedal>.csv`, una fila por fecha,
 y se amplían de forma incremental: cada ejecución solo procesa las fechas que faltan.
+
+### Publicar el informe
+
+```powershell
+.\publicar.ps1            # sube el informe más reciente a GitHub Pages
+```
+
+El informe es un solo fichero HTML autocontenido —las gráficas y las imágenes viajan incrustadas en
+base64—, así que publicarlo es copiarlo: no hay plantillas, ni assets, ni build. Eso cuesta unos 2 MB
+por informe, y por eso la rama `gh-pages` es huérfana y guarda **un solo commit**, que el script
+reemplaza con `--amend` y un push forzado. Es deliberado: acumular un histórico de informes de 2 MB
+en el repositorio no aporta nada, porque las series de las que sale cada informe ya están versionadas
+en `data/series/`.
 
 ### Backfill del histórico
 

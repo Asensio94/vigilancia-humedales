@@ -32,6 +32,25 @@ def _fmt(v, nd=3) -> str:
     return "–" if v is None or pd.isna(v) else f"{v:.{nd}f}"
 
 
+def _ha(v) -> str:
+    """Hectáreas con separador de miles español: 7.686, no 7,686.
+
+    El informe está en español y con la coma inglesa "7,686 ha" se lee como siete
+    hectáreas y media. Los índices espectrales sí se dejan con punto decimal, que es
+    como se citan en la literatura.
+    """
+    return f"{v:,.0f}".replace(",", ".")
+
+
+# Los tipos de alerta viajan como identificadores en el JSON; en pantalla se leen.
+KIND_LABELS = {"desecacion": "desecación", "descenso_brusco": "descenso brusco",
+               "eutrofizacion": "eutrofización", "turbidez": "turbidez"}
+
+
+def _kind(kind: str) -> str:
+    return KIND_LABELS.get(kind, kind.replace("_", " "))
+
+
 def denominator(site: Site, df: pd.DataFrame) -> tuple[float, str]:
     """Superficie con la que se compara la lámina medida.
 
@@ -95,7 +114,7 @@ def series_chart(site: Site, df: pd.DataFrame) -> str:
     axes[0].legend(loc="upper left", fontsize=8)
     axes[0].set_ylabel("Agua (ha)")
     axes[0].set_title(f"{site.name}: superficie de agua. {den_label[0].upper()}{den_label[1:]}: "
-                      f"{den:,.0f} ha", fontsize=10)
+                      f"{_ha(den)} ha", fontsize=10)
     axes[1].plot(ok["date"], ok["ndci_mean"], "o-", color="#2ca02c", ms=3, lw=1)
     axes[1].axhline(config.NDCI_BLOOM, color="red", ls="--", lw=0.8)
     axes[1].set_ylabel("NDCI medio\n(clorofila)")
@@ -216,9 +235,9 @@ def render(results: dict[str, dict], run_date: date) -> str:
             continue
         parts.append(
             f"<tr><td>{html.escape(site.name)}</td><td>{latest['date']}</td>"
-            f"<td>{latest['water_ha']:,.0f}</td><td>{_fmt(latest['ndci_mean'])}</td>"
+            f"<td>{_ha(latest['water_ha'])}</td><td>{_fmt(latest['ndci_mean'])}</td>"
             f"<td>{_fmt(latest['ndti_mean'])}</td>"
-            f"<td>{', '.join(a.kind for a in alerts) or 'ninguna'}</td></tr>")
+            f"<td>{', '.join(_kind(a.kind) for a in alerts) or 'ninguna'}</td></tr>")
     parts.append("</table>")
 
     for slug, res in results.items():
@@ -235,7 +254,7 @@ def render(results: dict[str, dict], run_date: date) -> str:
         parts.append(
             '<div class="kpi">'
             f"<div><small>Última fecha válida</small><b>{latest['date']}</b></div>"
-            f"<div><small>Agua</small><b>{latest['water_ha']:,.0f} ha</b>"
+            f"<div><small>Agua</small><b>{_ha(latest['water_ha'])} ha</b>"
             f"<small>{100 * frac:.0f} % del {den_label}</small></div>"
             f"<div><small>NDCI medio</small><b>{_fmt(latest['ndci_mean'])}</b></div>"
             f"<div><small>NDTI medio</small><b>{_fmt(latest['ndti_mean'])}</b></div>"
@@ -244,7 +263,7 @@ def render(results: dict[str, dict], run_date: date) -> str:
             "</div>")
         if alerts:
             for a in alerts:
-                parts.append(f'<div class="alerta {a.severity}"><b>{a.kind.replace("_", " ").upper()}'
+                parts.append(f'<div class="alerta {a.severity}"><b>{_kind(a.kind).upper()}'
                              f' · {a.severity}</b><br>{html.escape(a.message)}</div>')
         else:
             parts.append('<div class="ok">Sin alertas: valores dentro del rango de referencia.</div>')
@@ -254,8 +273,8 @@ def render(results: dict[str, dict], run_date: date) -> str:
             m = masks.load(slug)
             if m:
                 notes.append(
-                    f"Área inundable {m['floodable_ha']:,.0f} ha de las {m['site_ha']:,.0f} ha del "
-                    f"sitio Natura 2000, de las cuales {m['permanent_ha']:,.0f} ha con agua casi "
+                    f"Área inundable {_ha(m['floodable_ha'])} ha de las {_ha(m['site_ha'])} ha del "
+                    f"sitio Natura 2000, de las cuales {_ha(m['permanent_ha'])} ha con agua casi "
                     f"siempre; medida acumulando {m['dates_used']} fechas de meses húmedos.")
             if hydro.has_context(slug):
                 notes.append(f"Calado y lluvia del panel inferior: {html.escape(hydro.SOURCE)}.")
