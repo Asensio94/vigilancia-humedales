@@ -72,6 +72,16 @@ y se amplían de forma incremental: cada ejecución solo procesa las fechas que 
 
 ### Publicar el informe
 
+Cada día a las 06:20 UTC, [un workflow de GitHub Actions](.github/workflows/vigilancia.yml)
+descarga las fechas nuevas, recalcula las alertas, guarda las series en `master` y publica el
+informe. Las alertas del día quedan en el resumen de la ejecución, que es lo que se ve al abrir el
+correo de Actions. También se puede lanzar a mano desde la pestaña *Actions*.
+
+A las 06:20 y no a la hora del paso del satélite porque las escenas tardan varias horas en
+aparecer como L2A en el catálogo: pedirlas antes es pedirlas antes de que existan.
+
+Para publicar desde este equipo, sin esperar al cron:
+
 ```powershell
 .\publicar.ps1            # sube el informe más reciente a GitHub Pages
 ```

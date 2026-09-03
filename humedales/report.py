@@ -151,6 +151,20 @@ def series_chart(site: Site, df: pd.DataFrame) -> str:
     return _png_b64(fig)
 
 
+def cached_image(slug: str) -> str | None:
+    """La última imagen guardada de este humedal, si hay alguna.
+
+    El informe se regenera cada día, pero una fecha nueva de satélite solo llega cada
+    varios días, y nunca el mismo día en los seis humedales. Sin esta caché el informe
+    automático saldría casi siempre con cinco de seis humedales sin imagen. La fecha va
+    impresa dentro del propio PNG, así que no engaña sobre a qué día corresponde.
+    """
+    pngs = sorted(config.IMG_DIR.glob(f"{slug}_*.png"))
+    if not pngs:
+        return None
+    return base64.b64encode(pngs[-1].read_bytes()).decode()
+
+
 def latest_image(site: Site, when: date, r: Rasters) -> str:
     fig, axes = plt.subplots(1, 2, figsize=(11, 5.2))
     rgb = r.rgb.copy()
@@ -171,7 +185,13 @@ def latest_image(site: Site, when: date, r: Rasters) -> str:
     for ax in axes:
         ax.set_xticks([])
         ax.set_yticks([])
-    return _png_b64(fig)
+    b64 = _png_b64(fig)
+    # Se guarda para los días en que no hay escena nueva, y se deja solo la última:
+    # son 300 KB por humedal y el histórico de imágenes no lo usa nadie.
+    for old in config.IMG_DIR.glob(f"{site.slug}_*.png"):
+        old.unlink(missing_ok=True)
+    (config.IMG_DIR / f"{site.slug}_{when.isoformat()}.png").write_bytes(base64.b64decode(b64))
+    return b64
 
 
 def overview_map(statuses: dict[str, tuple[Site, list[Alert]]]) -> str:

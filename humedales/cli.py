@@ -93,8 +93,8 @@ def run(
                "chart_b64": None, "image_b64": None}
         if not no_report and not series.empty:
             res["chart_b64"] = report.series_chart(s, series)
-            if last_rasters is not None:
-                res["image_b64"] = report.latest_image(s, *last_rasters)
+            res["image_b64"] = (report.latest_image(s, *last_rasters) if last_rasters
+                                else report.cached_image(s.slug))
         results[s.slug] = res
 
     if not no_report and results:
@@ -166,7 +166,8 @@ def report_cmd(site: Optional[list[str]] = typer.Option(None, "--site", "-s")):
         ok = series[series["quality"] == "ok"]
         results[s.slug] = {"site": s, "series": series, "alerts": alerts_mod.evaluate(s, series),
                            "latest": ok.iloc[-1] if not ok.empty else None,
-                           "chart_b64": report.series_chart(s, series), "image_b64": None}
+                           "chart_b64": report.series_chart(s, series),
+                           "image_b64": report.cached_image(s.slug)}
     html_path, json_path = report.write(results, date.today())
     console.print(f"Informe: {html_path}\nAlertas: {json_path}")
 

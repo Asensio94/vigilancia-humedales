@@ -7,7 +7,9 @@ DATA_DIR = ROOT / "data"
 SITES_DIR = DATA_DIR / "sites"
 SERIES_DIR = DATA_DIR / "series"
 OUTPUT_DIR = ROOT / "output"
-IMG_DIR = OUTPUT_DIR / "img"
+# La imagen de la ultima fecha de cada humedal se guarda aqui, no en output/: el
+# informe se regenera a diario y los dias sin escena nueva no podrian dibujarla.
+IMG_DIR = DATA_DIR / "img"
 
 for _d in (SITES_DIR, SERIES_DIR, OUTPUT_DIR, IMG_DIR):
     _d.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,109 @@
+name: Vigilancia diaria
+
+# Una pasada al día: descarga las fechas nuevas de Sentinel-2, recalcula las alertas,
+# regenera el informe y lo publica. Solo procesa lo que falta, así que el trabajo real
+# son unas pocas fechas por humedal y no los nueve años de histórico.
+#
+# A las 06:20 UTC porque las escenas de la mañana tardan varias horas en aparecer como
+# L2A en el catálogo: pedirlas a la hora del paso del satélite es pedirlas antes de que
+# existan.
+on:
+  schedule:
+    - cron: "20 6 * * *"
+  workflow_dispatch:        # y a mano desde la pestaña Actions cuando haga falta
+
+permissions:
+  contents: write           # para guardar las series nuevas y publicar en gh-pages
+
+# Dos ejecuciones a la vez se pisarían las series y la rama de publicación.
+concurrency:
+  group: vigilancia
+  cancel-in-progress: false
+
+jobs:
+  vigilar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # La imagen de la última fecha de cada humedal, para que el informe la tenga
+      # también los días sin escena nueva. Si la caché se pierde, el informe de ese día
+      # sale sin imágenes y se rehace al siguiente: no vale versionarla en el repo,
+      # porque serían 2 MB diarios de histórico que nadie va a mirar.
+      - uses: actions/cache@v4
+        with:
+          path: data/img
+          key: img-${{ github.run_id }}
+          restore-keys: img-
+
+      - name: Descargar fechas nuevas y generar el informe
+        run: python -m humedales.cli run
+
+      - name: Guardar las series y las alertas
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/series data/hydro data/masks
+          if git diff --cached --quiet; then
+            echo "Sin fechas nuevas que guardar."
+          else
+            git commit -m "Series al $(date -u +%Y-%m-%d)"
+            # Alguien puede haber empujado a mano mientras corría esto.
+            git pull --rebase --autostash origin master
+            git push origin HEAD:master
+          fi
+
+      - name: Publicar el informe
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          informe=$(ls -1 output/informe_*.html | tail -1)
+          fecha=$(basename "$informe" | grep -o '[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}')
+          mkdir -p publicar
+          cp "$informe" publicar/index.html
+          cp "output/alertas_$fecha.json" publicar/alertas.json
+          touch publicar/.nojekyll
+          cd publicar
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Informe del $fecha"
+          # Un solo commit, siempre reemplazado: cada informe son 2 MB de gráficas
+          # incrustadas y su histórico no aporta nada. Las series de las que sale sí
+          # están versionadas en master.
+          git push -q --force \
+            "https://x-access-token:$TOKEN@github.com/${{ github.repository }}.git" \
+            gh-pages
+
+      # Las alertas del día, en la propia página de la ejecución: es donde se mira
+      # cuando llega un correo de Actions diciendo que algo ha pasado.
+      - name: Resumen de la ejecución
+        if: always()
+        run: |
+          {
+            echo "### Vigilancia de humedales"
+            echo
+            if ls output/alertas_*.json >/dev/null 2>&1; then
+              python - <<'EOF'
+          import glob, json
+          alertas = json.load(open(sorted(glob.glob("output/alertas_*.json"))[-1], encoding="utf-8"))
+          if not alertas:
+              print("Sin alertas activas.")
+          for a in alertas:
+              print(f"- **{a['site']}** · {a['kind']} ({a['severity']}): {a['message']}")
+          EOF
+            else
+              echo "No se generó informe en esta ejecución."
+            fi
+            echo
+            echo "Informe: https://asensio94.github.io/vigilancia-humedales/"
+          } >> "$GITHUB_STEP_SUMMARY"

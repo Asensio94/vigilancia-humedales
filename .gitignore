@@ -2,6 +2,8 @@
 __pycache__/
 output/
 data/sites/
+data/img/
+publicar/
 *.pyc
 logs/
 data/backup/
