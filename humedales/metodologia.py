@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from . import alerts as al
 from . import config, hydro, masks
+from .sites import SITES
 
 # Cada sigla que aparece en el informe, con lo que significa y para qué sirve aquí.
 # Las de índices llevan su fórmula porque todas tienen la misma forma, (A - B)/(A + B),
@@ -124,25 +125,53 @@ def _recuento(results: dict | None) -> tuple[int, int]:
     return total, ok
 
 
-def _bloques(results: dict | None = None) -> list[tuple[str, str, str]]:
-    """(ancla, título, HTML) de cada apartado.
+# El humedal que fuerza la resolución gruesa en cada país, y el que mejor ilustra por
+# qué el polígono administrativo no sirve de denominador.
+EJEMPLO_GRANDE = {"ES": "donana", "FR": "camargue"}
+EJEMPLO_DENOMINADOR = {"ES": "donana", "FR": "dombes"}
+MOTIVO_GRUESO = {
+    "ES": "necesita 4,5 escenas por fecha y a 20 m tardaba cuatro veces más sin cambiar "
+          "el resultado",
+    "FR": "son cuatro escenas por fecha sobre un delta de más de cien mil hectáreas, y "
+          "para una lámina de esa escala el píxel fino no añade nada",
+}
 
-    Ninguna cifra se escribe a mano: los umbrales salen de `config` y `alerts`, el
-    recuento de fechas de las propias series y las hectáreas de las máscaras medidas.
-    Un número que ya no es el que se aplica es peor que no documentarlo.
+
+def _datos(results: dict | None, pais: str) -> dict:
+    """Las cifras medidas que la prosa necesita, separadas de la prosa misma.
+
+    Ninguna se escribe a mano: los umbrales salen de `config` y `alerts`, el recuento de
+    fechas de las propias series y las hectáreas de las máscaras medidas. Un número que
+    ya no es el que se aplica es peor que no documentarlo. Y quedan aquí, fuera del
+    texto, para que traducir el informe sea escribir prosa y no volver a calcular nada.
     """
-    donana_res = config.RESOLUTION_BY_SITE.get("donana", config.RESOLUTION_M)
+    grande = SITES[EJEMPLO_GRANDE[pais]]
+    denom = SITES[EJEMPLO_DENOMINADOR[pais]]
     n_fechas, n_ok = _recuento(results)
-    recuento = (f"De las {_n(n_fechas)} fechas descargadas solo {_n(n_ok)} —un "
-                f"{_p(n_ok / n_fechas)}— llegan al informe. Ese filtro es" if n_fechas else
-                "Cerca de la mitad de las fechas descargadas se descartan. El filtro es")
-    m = masks.load("donana") or {}
-    donana_ha = (f"El de Doñana son {_n(m['site_ha'])} ha que incluyen" if m else
-                 "El de Doñana incluye")
-    donana_inundable = (
-        f"En Doñana son {_n(m['floodable_ha'])} ha, {_d(m['site_ha'] / m['floodable_ha'])} veces "
-        "menos que el polígono" if m else
-        "En Doñana el área inundable es bastante menor que el polígono")
+    m = masks.load(denom.slug) or {}
+    return {
+        "crs": grande.crs,
+        "grande": grande.name,
+        "grande_res": config.RESOLUTION_BY_SITE.get(grande.slug, config.RESOLUTION_M),
+        "grande_motivo": MOTIVO_GRUESO[pais],
+        "denom": denom.name,
+        "recuento": (f"De las {_n(n_fechas)} fechas descargadas solo {_n(n_ok)} —un "
+                     f"{_p(n_ok / n_fechas)}— llegan al informe. Ese filtro es" if n_fechas else
+                     "Cerca de la mitad de las fechas descargadas se descartan. El filtro es"),
+        "denom_ha": (f"El de {denom.name} son {_n(m['site_ha'])} ha que incluyen" if m else
+                     f"El de {denom.name} incluye"),
+        "campo_donde": ("que hoy solo existe en Doñana" if pais == "ES" else
+                        "que en Francia está por enganchar"),
+        "denom_inundable": (
+            f"En {denom.name} son {_n(m['floodable_ha'])} ha, "
+            f"{_d(m['site_ha'] / m['floodable_ha'])} veces menos que el polígono" if m else
+            f"En {denom.name} el área inundable es bastante menor que el polígono"),
+    }
+
+
+def _bloques(results: dict | None = None, pais: str = "ES") -> list[tuple[str, str, str]]:
+    """(ancla, título, HTML) de cada apartado, en español."""
+    d = _datos(results, pais)
     return [
         ("que-se-mide", "Qué se mide, y con qué", f"""
 <p>Cada pocos días un satélite pasa por encima del humedal y mide cuánta luz devuelve el suelo en
@@ -160,9 +189,8 @@ inundada, y contando píxeles eso se convierte en hectáreas.</p>
       vegetación no significarían nada.</li>
 </ul>
 <p>Todo se recorta con el polígono oficial Natura 2000 del humedal, reproyectado a
-{config.WORK_CRS} para trabajar en metros, y se muestrea a {config.RESOLUTION_M} m de píxel;
-Doñana a {donana_res} m, porque necesita 4,5 escenas por fecha y a 20 m tardaba cuatro veces más
-sin cambiar el resultado.</p>"""),
+{d['crs']} para trabajar en metros, y se muestrea a {config.RESOLUTION_M} m de píxel;
+{d['grande']} a {d['grande_res']} m, porque {d['grande_motivo']}.</p>"""),
 
         ("umbral", "El umbral de agua se calcula en cada fecha", f"""
 <p>La receta de manual es «hay agua donde MNDWI &gt; 0». Aquí no se usa, porque medía
@@ -187,7 +215,7 @@ equivoca:</p>
 un valor absurdo.</p>"""),
 
         ("calidad", "Qué fechas se tiran, y por qué", f"""
-<p>{recuento} la mitad del trabajo: una nube fina o una corrección atmosférica fallida no dan un error, dan un
+<p>{d['recuento']} la mitad del trabajo: una nube fina o una corrección atmosférica fallida no dan un error, dan un
 número plausible y equivocado, que es mucho peor.</p>
 <ul>
   <li><b>Nubes</b>: las clases de nube de la SCL, más todo píxel con azul por encima de
@@ -211,14 +239,36 @@ vez de vetarlo.</p>"""),
 
         ("denominador", "Con qué se compara la superficie medida", f"""
 <p>Decir «el humedal está al 16 % de su superficie» invita a una pregunta: ¿el 16 % de qué? El
-polígono Natura 2000 es un límite <em>administrativo</em>. {donana_ha}
-pinares, arenas y cultivos que no se inundan jamás, así que medir la lámina contra ese total no dice
+polígono Natura 2000 es un límite <em>administrativo</em>. {d['denom_ha']}
+terreno que no se inunda jamás, así que medir la lámina contra ese total no dice
 nada hidrológico.</p>
 <p>Por eso el denominador de este informe es el <b>área inundable</b>: la parte que ha llegado a
 tener agua alguna vez en nueve años, medida acumulando las fechas válidas de los meses húmedos.
-{donana_inundable}. El método se valida a sí mismo: al Mar Menor
+{d['denom_inundable']}. El método se valida a sí mismo: al Mar Menor
 le sale un 99 % de área inundable y un 96 % con agua permanente, que es exactamente lo que debe
 salir en una laguna costera.</p>"""),
+
+        # Solo en Francia. Los apartados que no tocan salen como tupla vacía y los
+        # filtra `section`: es más legible que montar la lista por trozos.
+        ("mar", "Por qué se recorta el mar", """
+<p>El polígono Natura 2000 de un humedal costero no acaba en la orilla: el de la Camarga entra
+varios kilómetros en el Mediterráneo. La primera medida sin recortar dio 56.542 ha «de agua», de las
+que dos tercios eran mar abierto. Ese error no se diluye: aparece igual en todas las fechas, así que
+una laguna que se secara se vería como un humedal perfectamente estable.</p>
+<p>La franja marina se quita con la línea de costa de OpenStreetMap, que además trae lo necesario
+para saber de qué lado está el mar, porque sus trazos van orientados con la tierra a la izquierda.
+Se corta el polígono por la costa y se pincha a los dos lados de cada tramo: la pieza que acumula
+las sondas del lado marino es el mar. Comparar los dos lados no es un adorno; con uno solo, cinco
+tramos mal orientados bastaban para dar por mar las 77.000 ha del delta entero. En la Camarga se
+recortan así 36.169 ha.</p>
+<p>No se decide con el satélite, aunque el mar sea agua en todas las fechas: también lo son una
+laguna permanente y el cauce de un río, y separarlos por contigüidad falla justo donde importa, en
+las lagunas litorales que un canal de un píxel de ancho conecta con el mar.</p>
+<p>Por lo mismo, aquí no hay humedales mareales. En la bahía del Mont-Saint-Michel, la del Somme, el
+golfo de Morbihan o Arcachon, la superficie de agua a la hora del paso del satélite la manda la
+marea, que a esa hora del día recorre su ciclo entero cada quince días. Medirlos exige predicción de
+marea; hasta entonces una alerta de desecación allí no diría nada.</p>""")
+        if pais == "FR" else ("", "", ""),
 
         ("alertas", "Cómo se decide que algo es una alerta", f"""
 <p>Ninguna alerta compara con un valor absoluto ni con otro humedal. Todas comparan cada humedal
@@ -246,7 +296,8 @@ profundas, y en lagunas someras, salinas y de fondo claro el índice está infla
 —Gallocanta lo supera en las 494 fechas que tiene—. Aquí solo se usa para <em>graduar</em> la
 gravedad: una alerta que además pasa ese umbral es alta; si no, media.</p>"""),
 
-        ("campo", "El contraste con medidas de campo", f"""
+        ("campo", "El contraste con medidas de campo",
+         f"""
 <p>El satélite dice cuánta superficie hay inundada, no por qué. Donde existe una red de medida en el
 suelo se añade al pie de la gráfica, y en Doñana la hay: {hydro.SOURCE}, con cinco estaciones que
 publican calado dentro de la marisma y siete que miden lluvia.</p>
@@ -254,9 +305,15 @@ publican calado dentro de la marisma y siete que miden lluvia.</p>
 del calado y se ve qué crecidas vienen de qué precipitación. Y como <b>validación independiente</b>:
 el área inundada que mide el satélite y el calado que miden los sensores en el suelo correlacionan
 0,94 sobre las 168 fechas que comparten, y la relación es monótona por tramos de calado. Son dos
-instrumentos que no tienen nada que ver midiendo lo mismo, y coinciden.</p>"""),
+instrumentos que no tienen nada que ver midiendo lo mismo, y coinciden.</p>""" if pais == "ES" else
+         """
+<p>El satélite dice cuánta superficie hay inundada, no por qué. En Francia ese dato existe y es
+abierto, que es más de lo que puede decirse de España: <b>Hub'Eau</b> publica el nivel de los
+acuíferos y el caudal de los ríos sin clave ni registro, y dentro de la Camarga hay 38 piezómetros,
+algunos con serie desde 1983. Todavía no está enganchado a este informe: es el siguiente paso, y es
+justo la pieza que en el lado español solo existe en Doñana.</p>"""),
 
-        ("limites", "Lo que este informe no puede decir", """
+        ("limites", "Lo que este informe no puede decir", f"""
 <ul>
   <li><b>NDTI y NDCI son proxies sin calibrar</b>: no hay unidades de turbidez ni miligramos de
       clorofila detrás, y sus umbrales de literatura no son transferibles a lagunas someras y
@@ -271,16 +328,21 @@ instrumentos que no tienen nada que ver midiendo lo mismo, y coinciden.</p>"""),
       misma época del año.</li>
   <li><b>No distingue la causa</b>: una desecación puede venir de que no ha llovido, de que el
       acuífero ha bajado o de que alguien ha abierto una compuerta. El satélite no lo sabe; para eso
-      está el contraste con las medidas de campo, que hoy solo existe en Doñana.</li>
+      está el contraste con las medidas de campo, {d['campo_donde']}.</li>
   <li><b>Una alerta es un aviso, no un diagnóstico</b>: dice que algo se sale de lo que ese humedal
       suele hacer en estas fechas, y que merece que alguien lo mire.</li>
 </ul>"""),
     ]
 
 
-def section(results: dict | None = None) -> str:
+# Prosa por idioma. Traducir el informe es escribir un `_bloques_fr` con los mismos
+# apartados leyendo el mismo `_datos`: la prosa está separada del cálculo a propósito.
+PROSA = {"es": _bloques}
+
+
+def section(results: dict | None = None, pais: str = "ES", idioma: str = "es") -> str:
     """La sección completa, lista para insertar en el informe."""
-    bloques = _bloques(results)
+    bloques = [b for b in PROSA[idioma](results, pais) if b[0]]
     out = ['<h2 id="metodologia">Metodología</h2>',
            '<p class="indice">'
            + " · ".join(f'<a href="#{ancla}">{titulo}</a>' for ancla, titulo, _ in bloques)

@@ -65,11 +65,15 @@ jobs:
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          informe=$(ls -1 output/informe_*.html | tail -1)
-          fecha=$(basename "$informe" | grep -o '[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}')
+          fecha=$(date -u +%Y-%m-%d)
           mkdir -p publicar
-          cp "$informe" publicar/index.html
+          # Una página por país. España se queda en index.html: es la URL que ya
+          # estaba publicada y la que hay enlazada por ahí fuera.
+          cp "output/informe_ES_$fecha.html" publicar/index.html
+          cp "output/informe_FR_$fecha.html" publicar/france.html
           cp "output/alertas_$fecha.json" publicar/alertas.json
+          cp "output/alertas_ES_$fecha.json" publicar/alertas_es.json
+          cp "output/alertas_FR_$fecha.json" publicar/alertas_fr.json
           touch publicar/.nojekyll
           cd publicar
           git init -q -b gh-pages
@@ -92,10 +96,11 @@ jobs:
           {
             echo "### Vigilancia de humedales"
             echo
-            if ls output/alertas_*.json >/dev/null 2>&1; then
+            if ls output/alertas_[0-9]*.json >/dev/null 2>&1; then
               python - <<'EOF'
           import glob, json
-          alertas = json.load(open(sorted(glob.glob("output/alertas_*.json"))[-1], encoding="utf-8"))
+          # El fichero sin país lleva las alertas de los dos, que es lo que interesa aquí.
+          alertas = json.load(open(sorted(glob.glob("output/alertas_[0-9]*.json"))[-1], encoding="utf-8"))
           if not alertas:
               print("Sin alertas activas.")
           for a in alertas:
@@ -105,5 +110,6 @@ jobs:
               echo "No se generó informe en esta ejecución."
             fi
             echo
-            echo "Informe: https://asensio94.github.io/vigilancia-humedales/"
+            echo "España: https://asensio94.github.io/vigilancia-humedales/"
+            echo "Francia: https://asensio94.github.io/vigilancia-humedales/france.html"
           } >> "$GITHUB_STEP_SUMMARY"

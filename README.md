@@ -1,17 +1,23 @@
 # Vigilancia satelital de humedales protegidos
 
 Mide cada pocos días, con **Sentinel-2**, la superficie de agua, la turbidez y la clorofila de
-humedales protegidos españoles (Doñana, Mar Menor, Tablas de Daimiel, l'Albufera, Fuente de Piedra,
-Gallocanta) y dispara **alertas** de desecación o eutrofización comparando cada observación con la
-serie histórica del mismo humedal en la misma época del año.
+humedales protegidos y dispara **alertas** de desecación o eutrofización comparando cada observación
+con la serie histórica del mismo humedal en la misma época del año. Son doce, en dos países:
 
-**El último informe está publicado en https://asensio94.github.io/vigilancia-humedales/**, y sus
+- **España**: Doñana, Mar Menor, Tablas de Daimiel, l'Albufera, Fuente de Piedra y Gallocanta.
+- **Francia**: Camarga, Marais Poitevin, Grande Brenne, Lac du Der-Chantecoq, Lac de Grand-Lieu y
+  La Dombes.
+
+**Los informes están publicados en https://asensio94.github.io/vigilancia-humedales/ (España) y
+[/france.html](https://asensio94.github.io/vigilancia-humedales/france.html) (Francia)**, y sus
 alertas en formato legible por programa en
-[`alertas.json`](https://asensio94.github.io/vigilancia-humedales/alertas.json). El propio informe
+[`alertas.json`](https://asensio94.github.io/vigilancia-humedales/alertas.json), que lleva las de
+los dos países (o `alertas_es.json` y `alertas_fr.json` por separado). El propio informe
 lleva al final una [sección de metodología](https://asensio94.github.io/vigilancia-humedales/#metodologia)
 en lenguaje llano, con un glosario de siglas: se genera desde `metodologia.py` leyendo los umbrales
-reales de `config` y `alerts`, así que no puede quedarse describiendo una versión anterior. Lo que
-sigue aquí es la trastienda técnica.
+reales de `config` y `alerts`, así que no puede quedarse describiendo una versión anterior. Cada
+página lleva la metodología de su país, con sus propios ejemplos medidos. Lo que sigue aquí es la
+trastienda técnica.
 
 ## Estado
 
@@ -55,6 +61,42 @@ mediana anual en nueve años, frente a las 13.500 ha que se citan habitualmente 
 segundo es la correlación de 0,94 entre el área inundada de Doñana y el calado medido en el suelo en
 la marisma, sobre 168 fechas (ver *Contexto hidrológico*).
 
+## Los humedales franceses
+
+El método no tenía nada específico de España salvo el sistema de referencia, así que Francia entró
+casi entera con el mismo código. Lo que sí hubo que resolver:
+
+**El sistema de referencia se elige por país.** Hay que proyectar a metros para contar hectáreas.
+España va en ETRS89 / UTM 30N y Francia en **Lambert-93**, que es el sistema nacional y cubre sus
+tres husos sin partir ningún humedal. Los dos son conformes, así que distorsionan el área menos de
+una milésima: irrelevante frente al tamaño del píxel.
+
+**El polígono de un humedal costero entra en el mar, y eso rompe la medida.** La primera lectura de
+la Camarga dio 56.542 ha «de agua» de las que dos tercios eran Mediterráneo abierto, y ese error no
+se diluye: aparece igual en todas las fechas, así que una laguna que se secara se vería estable.
+`costa.py` recorta la franja marina con la línea de costa de **OpenStreetMap**, aprovechando que sus
+trazos `natural=coastline` van orientados con la tierra a la izquierda. Se corta el polígono por la
+costa y se pincha a los dos lados de cada tramo: la pieza que acumula sondas del lado marino es el
+mar. Los dos lados, no uno: con uno solo, cinco tramos mal orientados bastaban para dar por mar las
+77.000 ha del delta entero. Recortadas 36.169 ha, la Camarga mide 20.538 ha de lámina el 2 de
+septiembre de 2026, que es lo que suman Vaccarès, los étangs inferiores y los salinos de Giraud.
+
+**No hay humedales mareales, y es deliberado.** En la bahía del Mont-Saint-Michel, la del Somme, el
+golfo de Morbihan o Arcachon la superficie de agua a la hora del paso del satélite la manda la
+marea, que a esa hora del día recorre su ciclo entero cada quince días. Medirlos exige predicción de
+marea; hasta entonces una alerta de desecación allí no diría nada.
+
+**Los meses en que se busca el máximo de lámina dejan de ser fijos.** El invierno ibérico no vale en
+un embalse de laminación como el Der, que se llena en invierno y se vacía en verano para sostener el
+estiaje del Sena (su máximo es de mayo-junio), ni en los étangs piscícolas de la Brenne y la Dombes,
+donde lo marca la rotación de vaciado. Es un campo `wet_months` por humedal, y solo afecta al
+muestreo del área inundable.
+
+**El contexto de campo francés es mejor que el español y está pendiente de enganchar.** `Hub'Eau`
+(`hubeau.eaufrance.fr`) publica sin clave ni registro el nivel de los acuíferos y el caudal de los
+ríos: 38 piezómetros dentro de la Camarga, algunos con serie desde 1983, y 19 estaciones de caudal
+junto a la Brenne. Es justo lo que en España solo existe en Doñana.
+
 ## Uso
 
 ```bash
@@ -92,8 +134,13 @@ Para publicar desde este equipo, sin esperar al cron:
 .\publicar.ps1            # sube el informe más reciente a GitHub Pages
 ```
 
+Hay **una página por país**: España se queda en `index.html`, que es la URL que ya estaba publicada,
+y Francia va en `france.html`, con un enlace de una a otra. No es solo por peso: la hidrología, las
+fuentes de contexto y el lector de cada uno son distintos, y una tabla resumen que mezcla Doñana con
+la Camarga no se lee mejor por ser más larga.
+
 El informe es un solo fichero HTML autocontenido —las gráficas y las imágenes viajan incrustadas en
-base64—, así que publicarlo es copiarlo: no hay plantillas, ni assets, ni build. Eso cuesta unos 2 MB
+base64—, así que publicarlo es copiarlo: no hay plantillas, ni assets, ni build. Eso cuesta unos 2,5 MB
 por informe, y por eso la rama `gh-pages` es huérfana y guarda **un solo commit**, que el script
 reemplaza con `--amend` y un push forzado. Es deliberado: acumular un histórico de informes de 2 MB
 en el repositorio no aporta nada, porque las series de las que sale cada informe ya están versionadas

@@ -239,18 +239,30 @@ img{max-width:100%} small{color:#666}
 table{border-collapse:collapse;font-size:.85rem} td,th{border:1px solid #ddd;padding:.25rem .5rem}
 h3{font-size:1.02rem;margin:1.6rem 0 .3rem}
 .indice{font-size:.85rem;color:#555;line-height:1.7}
+.nav{margin:-.6rem 0 1rem} .nav a{color:#1a6}
 .glosario dt{font-weight:600;margin-top:.7rem} .glosario dd{margin:.15rem 0 0 1.2rem;color:#444}
 #metodologia ~ p,#metodologia ~ ul li,.glosario dd{max-width:75ch;line-height:1.5}
 """
 
 
-def render(results: dict[str, dict], run_date: date) -> str:
+# Un informe por país, no uno con los doce humedales dentro. No es solo peso: la
+# hidrología, las fuentes de contexto y el lector de cada uno son distintos, y una
+# tabla resumen que mezcla Doñana con la Camarga no se lee mejor por ser más larga.
+PAISES = {"ES": ("España", "index.html"), "FR": ("Francia", "france.html")}
+
+
+def render(results: dict[str, dict], run_date: date, pais: str = "ES") -> str:
     """results[slug] = {site, series, alerts, latest, chart_b64, image_b64}"""
+    nombre_pais = PAISES[pais][0]
+    otros = "".join(
+        f' · <a href="{fichero}">{nombre}</a>'
+        for codigo, (nombre, fichero) in PAISES.items() if codigo != pais)
     parts = [
         "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\">",
-        f"<title>Vigilancia de humedales · {run_date.isoformat()}</title>",
+        f"<title>Vigilancia de humedales · {nombre_pais} · {run_date.isoformat()}</title>",
         f"<style>{CSS}</style></head><body>",
-        "<h1>Vigilancia satelital de humedales protegidos</h1>",
+        f"<h1>Vigilancia satelital de humedales protegidos · {nombre_pais}</h1>",
+        f'<p class="nav"><small>Ver también{otros}</small></p>' if otros else "",
         "<p><small>Sentinel-2 L2A (Earth Search / AWS), límites Natura 2000 (EEA). Informe "
         f"generado el {run_date.isoformat()}. Superficie de agua, turbidez y clorofila medidas por "
         "satélite cada pocos días; las alertas comparan cada humedal consigo mismo en la misma "
@@ -326,15 +338,33 @@ def render(results: dict[str, dict], run_date: date) -> str:
     map_html = overview_map(statuses)
     parts.append(f'<iframe srcdoc="{html.escape(map_html)}" '
                  'style="width:100%;height:520px;border:0"></iframe>')
-    parts.append(metodologia.section(results))
+    parts.append(metodologia.section(results, pais))
     parts.append("</body></html>")
     return "\n".join(parts)
 
 
-def write(results: dict[str, dict], run_date: date) -> tuple[str, str]:
-    html_path = config.OUTPUT_DIR / f"informe_{run_date.isoformat()}.html"
-    html_path.write_text(render(results, run_date), encoding="utf-8")
-    alerts = [a.to_dict() for r in results.values() for a in r["alerts"]]
-    json_path = config.OUTPUT_DIR / f"alertas_{run_date.isoformat()}.json"
-    json_path.write_text(json.dumps(alerts, ensure_ascii=False, indent=2), encoding="utf-8")
-    return str(html_path), str(json_path)
+def write(results: dict[str, dict], run_date: date) -> list[tuple[str, str, str]]:
+    """Escribe un informe por país y devuelve (país, html, json) de cada uno.
+
+    Las alertas se sacan también en JSON por país porque es lo que lee el resumen de la
+    ejecución automática, y allí interesa saber de qué informe viene cada una.
+    """
+    salidas: list[tuple[str, str, str]] = []
+    for pais in PAISES:
+        del_pais = {slug: res for slug, res in results.items()
+                    if res["site"].country == pais}
+        if not del_pais:
+            continue
+        html_path = config.OUTPUT_DIR / f"informe_{pais}_{run_date.isoformat()}.html"
+        html_path.write_text(render(del_pais, run_date, pais), encoding="utf-8")
+        alerts = [a.to_dict() for r in del_pais.values() for a in r["alerts"]]
+        json_path = config.OUTPUT_DIR / f"alertas_{pais}_{run_date.isoformat()}.json"
+        json_path.write_text(json.dumps(alerts, ensure_ascii=False, indent=2), encoding="utf-8")
+        salidas.append((pais, str(html_path), str(json_path)))
+
+    # Y todas juntas, con el nombre de siempre: es el fichero que puede estar leyendo
+    # algo de fuera, y a un consumidor le sirve más la lista completa que dos mitades.
+    todas = [a.to_dict() for r in results.values() for a in r["alerts"]]
+    (config.OUTPUT_DIR / f"alertas_{run_date.isoformat()}.json").write_text(
+        json.dumps(todas, ensure_ascii=False, indent=2), encoding="utf-8")
+    return salidas

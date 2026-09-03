@@ -98,8 +98,9 @@ def run(
         results[s.slug] = res
 
     if not no_report and results:
-        html_path, json_path = report.write(results, today)
-        console.print(f"\nInforme: {html_path}\nAlertas: {json_path}")
+        for pais, html_path, json_path in report.write(results, today):
+            console.print(f"\n{pais} · Informe: {html_path}"
+                          f"\n{pais} · Alertas: {json_path}")
 
 
 @app.command()
@@ -168,8 +169,9 @@ def report_cmd(site: Optional[list[str]] = typer.Option(None, "--site", "-s")):
                            "latest": ok.iloc[-1] if not ok.empty else None,
                            "chart_b64": report.series_chart(s, series),
                            "image_b64": report.cached_image(s.slug)}
-    html_path, json_path = report.write(results, date.today())
-    console.print(f"Informe: {html_path}\nAlertas: {json_path}")
+    for pais, html_path, json_path in report.write(results, date.today()):
+        console.print(f"{pais} · Informe: {html_path}"
+                      f"\n{pais} · Alertas: {json_path}")
 
 
 if __name__ == "__main__":
