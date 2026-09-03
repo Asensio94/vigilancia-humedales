@@ -7,7 +7,11 @@ serie histórica del mismo humedal en la misma época del año.
 
 **El último informe está publicado en https://asensio94.github.io/vigilancia-humedales/**, y sus
 alertas en formato legible por programa en
-[`alertas.json`](https://asensio94.github.io/vigilancia-humedales/alertas.json).
+[`alertas.json`](https://asensio94.github.io/vigilancia-humedales/alertas.json). El propio informe
+lleva al final una [sección de metodología](https://asensio94.github.io/vigilancia-humedales/#metodologia)
+en lenguaje llano, con un glosario de siglas: se genera desde `metodologia.py` leyendo los umbrales
+reales de `config` y `alerts`, así que no puede quedarse describiendo una versión anterior. Lo que
+sigue aquí es la trastienda técnica.
 
 ## Estado
 
