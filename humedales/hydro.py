@@ -59,6 +59,10 @@ class RateLimited(RuntimeError):
     """El portal ha rechazado la petición por exceso de consultas."""
 
 
+# Humedales cuya última serie se sirvió desde la caché por haber agotado el límite.
+_LIMITED: set[str] = set()
+
+
 def _open(url: str) -> dict:
     try:
         with urllib.request.urlopen(url, timeout=TIMEOUT) as r:
@@ -247,6 +251,12 @@ def series(site: Site, variable: str, start: date, end: date) -> pd.DataFrame:
             df = fetch_cached(st)
         if not df.empty and df["value"].notna().sum() > 0:
             cols[st.name] = df.set_index("date")["value"]
+    # pandas no conserva attrs al agregar entre columnas, y el informe necesita saber
+    # si lo que está pintando llega hasta hoy o se quedó en la última descarga. Se
+    # registra antes de la salida en vacío: quedarse sin serie por el límite es
+    # justo el caso que hay que avisar.
+    if limited:
+        _LIMITED.add(site.slug)
     if not cols:
         return pd.DataFrame()
     out = pd.DataFrame(cols).sort_index()
@@ -274,3 +284,8 @@ def rainfall(site: Site, start: date, end: date) -> pd.Series:
 
 def has_context(slug: str) -> bool:
     return any(s.site == slug for s in discover())
+
+
+def was_limited(slug: str) -> bool:
+    """True si la última lectura de este humedal se sirvió desde la caché por el límite."""
+    return slug in _LIMITED

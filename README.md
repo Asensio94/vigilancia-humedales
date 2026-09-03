@@ -16,11 +16,20 @@ recuperación; mediana anual de agua libre en hectáreas:
 |---|---|---|---|---|---|---|---|---|---|
 | 236 | 241 | 181 | 88 | 60 | 50 | 26 | 85 | 159 | 248 |
 
+2017 arranca en julio y 2026 acaba en septiembre, así que sus medianas no cubren el año entero; con la
+misma ventana de meses en todos los años (enero a septiembre) la serie es 258, 249, 190, 90, 65, 53,
+52, 85, 170, 248 ha, es decir la misma forma pero con un 2023 menos extremo, porque lo peor de aquella
+sequía fue el otoño. Comparar medianas anuales entre años incompletos es una trampa fácil (ver
+*Limitaciones*); las alertas no la pisan porque siempre comparan contra la misma época del año.
+
 El fondo de la sequía en 2023 y la recuperación de 2025-2026 coinciden con el calado medido en el
 suelo en la marisma de Doñana (máximos anuales de 0,18 m en 2023 y 1,10 m en 2026), que es una fuente
 independiente del satélite: ver *Contexto hidrológico*.
 
-El resto de humedales está en carga (`backfill`).
+Mar Menor también completo: 553 fechas, 357 válidas. Su lámina permanente sirve de control de la
+medida absoluta, porque no debería moverse: sale entre 12.950 y 13.340 ha de mediana anual en nueve
+años, frente a las 13.500 ha que se citan habitualmente para la laguna. El resto de humedales está en
+carga (`backfill`).
 
 ## Uso
 
@@ -133,6 +142,11 @@ error del prototipo).
   resto de humedales las alertas se quedan sin explicación de campo.
 - Las correcciones atmosféricas fallidas se detectan, pero no se corrigen: esas fechas se pierden. En
   Tablas de Daimiel son 97 de 475, la mayoría de S2C.
+- **Las medianas anuales no son comparables si el año está incompleto.** En el Mar Menor la mediana
+  anual de NDCI parecía subir de forma sostenida hasta 2026, y con la misma ventana de meses en todos
+  los años la tendencia desaparece: era el otoño que falta en 2026, no clorofila. Tampoco era deriva de
+  sensor (la subida aparente salía igual en S2A y en S2B). Cualquier lectura entre años tiene que
+  fijar la ventana estacional; las alertas ya lo hacen, la vista de la serie no.
 
 ## Siguientes pasos
 

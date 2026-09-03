@@ -253,6 +253,10 @@ def render(results: dict[str, dict], run_date: date) -> str:
                     f"siempre; medida acumulando {m['dates_used']} fechas de meses húmedos.")
             if hydro.has_context(slug):
                 notes.append(f"Calado y lluvia del panel inferior: {html.escape(hydro.SOURCE)}.")
+                if hydro.was_limited(slug):
+                    notes.append("La serie de campo se ha servido desde la copia local: el portal "
+                                 "agotó su límite de peticiones, así que puede no llegar a la última "
+                                 "fecha del satélite.")
             if notes:
                 parts.append(f"<p><small>{' '.join(notes)}</small></p>")
         if res.get("image_b64"):
