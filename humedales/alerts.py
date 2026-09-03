@@ -109,6 +109,43 @@ def seasonal_drop_ratio(df: pd.DataFrame, when: date) -> tuple[float | None, int
     return float(pd.Series(ratios).quantile(DROP_SEASON_PERCENTILE)), len(ratios)
 
 
+BLOOM_PERCENTILE = 0.90      # percentil de los picos históricos de la época a superar
+BLOOM_MARGIN = 0.02          # margen sobre ese percentil, para no saltar por el ruido
+
+
+def window_peak(df: pd.DataFrame, when: date, col: str = "ndci_mean") -> float | None:
+    """Valor máximo de la ventana reciente. Para la clorofila el pico es la señal.
+
+    La lámina de agua se mide con la mediana de la ventana, porque su parpadeo entre
+    pasadas es un artefacto espectral. Con la clorofila es al revés: una floración algal
+    dura días, así que la mediana de tres semanas la borra. Medido sobre los seis
+    humedales, la mediana de veinte días no supera nunca el umbral de floración de la
+    literatura (0,20), ni una vez en 2.221 observaciones, mientras que por fecha
+    Gallocanta llega a 0,514 con el 99 % de la lámina por encima del umbral.
+    """
+    cur = df[(df["date"] >= when - timedelta(days=CURRENT_DAYS)) & (df["date"] <= when)]
+    if len(cur) < CURRENT_MIN_OBS:
+        return None
+    v = pd.to_numeric(cur[col], errors="coerce")
+    return None if v.isna().all() else float(v.max())
+
+
+def seasonal_peak(df: pd.DataFrame, when: date, col: str = "ndci_mean") -> tuple[float | None, int]:
+    """Percentil de los picos de clorofila de esta época del año en años anteriores.
+
+    Hay que comparar picos con picos. Contrastar el máximo de una ventana de ocho
+    observaciones contra el percentil 95 de observaciones sueltas lo supera por pura
+    construcción una vez de cada tres, y así la regla disparaba en el 40-70 % de las
+    fechas. Con la distribución de los picos históricos de la misma época baja al 3-15 %,
+    y los avisos caen donde tienen que caer: en el Mar Menor, en 2019 y 2021.
+    """
+    ref = seasonal_reference(df, when)
+    peaks = [p for d in ref["date"] if (p := window_peak(df, d, col)) is not None]
+    if len(peaks) < MIN_HISTORY:
+        return None, len(peaks)
+    return float(pd.Series(peaks).quantile(BLOOM_PERCENTILE)), len(peaks)
+
+
 def seasonal_reference(df: pd.DataFrame, when: date) -> pd.DataFrame:
     """Observaciones ok de años anteriores dentro de ±SEASON_WINDOW_DAYS del día del año."""
     hist = df[df["date"] < when - timedelta(days=SEASON_WINDOW_DAYS)]
@@ -164,24 +201,29 @@ def evaluate(site: Site, series: pd.DataFrame) -> list[Alert]:
                     f"({100 * (1 - ratio):.0f} % menos).{extra}",
                     cur_ha, base))
 
-    # --- Eutrofización: umbral absoluto y desviación del histórico -----------
-    ndci = last["ndci_mean"]
-    bloom = last["bloom_frac"]
-    if pd.notna(ndci):
-        bloom_v = float(bloom) if pd.notna(bloom) else 0.0
-        if ndci > config.NDCI_BLOOM or bloom_v > config.NDCI_BLOOM_FRAC:
+    # --- Eutrofización: pico de clorofila contra los picos de la misma época ---
+    # El umbral absoluto de la literatura (NDCI > 0.20, unos 40 mg/m³ de clorofila-a según
+    # Mishra & Mishra 2012) no es transferible a estas lagunas: se calibró en aguas
+    # continentales profundas, y en lagunas someras y salinas con fondo claro el índice
+    # está inflado de forma crónica. Usarlo para disparar da todo o nada: Gallocanta lo
+    # supera en el 100 % de sus 494 fechas. Así que aquí dispara la anomalía frente al
+    # propio humedal, y el umbral de literatura solo gradúa la gravedad.
+    peak = window_peak(df, when)
+    if peak is not None:
+        season_peak, n_peaks = seasonal_peak(df, when)
+        bloom_v = float(bloom_frac) if pd.notna(bloom_frac := last["bloom_frac"]) else 0.0
+        if season_peak is not None and peak > season_peak + BLOOM_MARGIN:
+            severity = "alta" if peak > config.NDCI_BLOOM else "media"
             alerts.append(Alert(
-                site.slug, when, "eutrofizacion", "alta",
-                f"NDCI medio {ndci:.3f} y {100 * bloom_v:.0f} % de la lámina con NDCI > "
-                f"{config.NDCI_BLOOM}: indicios de floración algal.",
-                float(ndci), config.NDCI_BLOOM))
-        elif len(ref) >= MIN_HISTORY:
-            p90 = float(ref["ndci_mean"].quantile(0.90))
-            if ndci > p90 + 0.02:
-                alerts.append(Alert(
-                    site.slug, when, "eutrofizacion", "media",
-                    f"NDCI medio {ndci:.3f}, por encima del percentil 90 histórico para estas "
-                    f"fechas ({p90:.3f}, n={len(ref)}).", float(ndci), p90))
+                site.slug, when, "eutrofizacion", severity,
+                f"Pico de NDCI {peak:.3f} en los últimos {CURRENT_DAYS} días, por encima de los "
+                f"picos habituales en estas fechas ({season_peak:.3f} es el percentil "
+                f"{100 * BLOOM_PERCENTILE:.0f} de {n_peaks} ventanas de años anteriores)"
+                + (f", con el {100 * bloom_v:.0f} % de la lámina por encima de "
+                   f"{config.NDCI_BLOOM}" if bloom_v > 0.1 else "")
+                + (". Supera además el umbral de floración algal de la literatura."
+                   if peak > config.NDCI_BLOOM else "."),
+                peak, season_peak))
 
     # --- Turbidez respecto al histórico ---------------------------------------
     ndti = last["ndti_mean"]

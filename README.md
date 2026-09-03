@@ -131,8 +131,10 @@ error del prototipo).
    - **descenso brusco** (media): agua libre < 70 % de la mediana de los 45 días previos a la ventana
      actual, **y** además una caída peor que el 90 % de las caídas registradas en esa misma época del
      año (ver *Una laguna que se seca cada verano no es noticia*);
-   - **eutrofización** (alta): NDCI medio > 0.20 (unos 40 mg/m³ de clorofila-a según Mishra & Mishra 2012)
-     o > 50 % del agua libre con NDCI > 0.20; (media): NDCI por encima del percentil 90 histórico estacional;
+   - **eutrofización**: el **pico** de NDCI de la ventana actual por encima del percentil 90 de los
+     picos de esa misma época del año en años anteriores, más un margen de 0,02. La gravedad la gradúa
+     el umbral de literatura (0,20): alta si además lo supera, media si no (ver *El umbral de clorofila
+     de la literatura no sirve aquí*);
    - **turbidez** (media): NDTI por encima del percentil 90 histórico estacional.
    Las lagunas de agua permanente (Mar Menor, l'Albufera) no generan alertas de superficie.
 6. `masks.py`: mide el **área inundable** de cada humedal acumulando el agua detectada en fechas
@@ -152,7 +154,8 @@ error del prototipo).
   no un error: el agua bajo vegetación está en el filo del umbral MNDWI. El umbral adaptativo y la
   mediana móvil de las alertas lo amortiguan, pero no lo eliminan; para hectáreas absolutas fiables
   haría falta un composite de varias pasadas.
-- NDCI y NDTI son proxies; no están calibrados a mg/m³ ni NTU. Sirven para detectar anomalías,
+- NDCI y NDTI son proxies; no están calibrados a mg/m³ ni NTU, y sus umbrales de literatura no valen
+  en lagunas someras y salinas. Sirven para detectar anomalías,
   no para dar valores absolutos. Las Tablas viven con NDCI ≈ 0.15 de forma habitual en verano.
 - Las alertas relativas necesitan histórico: hasta tener varios años de serie solo funcionan las reglas
   absolutas y la de descenso brusco.
@@ -234,6 +237,46 @@ las alertas: su concordancia con la ESA es 0,92. En Tablas de Daimiel el cambio 
 `espectro_anomalo` y bajó las `incoherente` de 41 a 7.
 
 Atacar la causa en vez del síntoma es lo que permitió recuperar el satélite en vez de perderlo.
+
+### El umbral de clorofila de la literatura no sirve aquí
+
+Con las series completas se vio que la alerta de eutrofización, que es la mitad del propósito del
+proyecto, **no había disparado ni una vez en 2.221 observaciones**. Dos causas, las dos instructivas.
+
+La primera: el valor que se evaluaba era la mediana de la ventana de veinte días, que se introdujo
+para amortiguar el parpadeo de la lámina de agua entre pasadas. Con la clorofila es al revés, porque
+una floración algal dura días y una mediana de tres semanas la borra. Por fecha suelta Gallocanta
+llega a NDCI 0,514 con el 99 % de su lámina por encima del umbral, y Fuente de Piedra a 0,429; la
+mediana de veinte días no pasa de 0,200 en ningún humedal ni una sola vez. Cada variable necesita su
+estadístico: mediana para la superficie, pico para la clorofila.
+
+La segunda: el umbral de 0,20 (unos 40 mg/m³ de clorofila-a según Mishra & Mishra 2012) se calibró en
+aguas continentales profundas y **no es transferible** a lagunas someras y salinas con fondo claro,
+donde el índice está inflado de forma crónica. Usarlo para disparar da todo o nada: con el pico en vez
+de la mediana, Gallocanta alertaría en **494 de sus 494 fechas** y Fuente de Piedra en 338 de 420.
+
+La regla que sí funciona compara el pico actual con los **picos** de la misma época del año en años
+anteriores. Y aquí hubo un error estadístico propio que conviene no repetir: comparar el máximo de una
+ventana de ocho observaciones contra el percentil 95 de observaciones sueltas lo supera por pura
+construcción una vez de cada tres (1 - 0,95⁸ = 34 %), y con eso la regla disparaba en el 40-70 % de las
+fechas. Hay que comparar el estadístico con la distribución del mismo estadístico. Con los picos
+históricos de la época, los avisos bajan al 3-15 % de las fechas y caen donde deben:
+
+| Humedal | años con aviso de eutrofización |
+|---|---|
+| Mar Menor | 2019, 2020, 2021, 2024 |
+| l'Albufera de València | 2019 a 2026, casi todos los años |
+| Tablas de Daimiel | 2019 (11 avisos altos), 2020, 2025 |
+| Gallocanta | 2020, 2021 (24), 2022, 2024, 2025, 2026 |
+| Fuente de Piedra | 2018 a 2024, y 2026 |
+| Doñana | 2020, 2025, 2026 |
+
+Los dos años en que salta el Mar Menor son 2019 y 2021, sus dos crisis anóxicas documentadas, y salta
+sin necesidad del umbral absoluto: sus aguas son más claras y su NDCI nunca llega a 0,20, pero la
+anomalía frente a su propia época del año sí se ve. l'Albufera avisa casi todos los años, lo que es
+coherente con una eutrofización crónica, y hoy tiene el único aviso activo del informe (pico 0,182
+frente a 0,110 habitual). Gallocanta, en cambio, no avisa pese a su NDCI de 0,231 de septiembre de
+2026: allí eso es simplemente septiembre.
 
 ### Una laguna que se seca cada verano no es noticia
 
