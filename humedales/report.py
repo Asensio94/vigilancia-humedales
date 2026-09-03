@@ -28,6 +28,19 @@ def _png_b64(fig) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
+def _jpg_b64(fig) -> str:
+    """Las imágenes de satélite son fotografías, y en PNG pesaban 600 KB cada una.
+
+    En JPEG bajan a menos de una quinta parte sin diferencia visible a esta escala, y
+    eso es lo que decide si el informe publicado son 2 MB o 6. Las gráficas siguen en
+    PNG: tienen texto y líneas finas, que es justo lo que el JPEG estropea.
+    """
+    buf = io.BytesIO()
+    fig.savefig(buf, format="jpg", dpi=110, bbox_inches="tight", pil_kwargs={"quality": 82})
+    plt.close(fig)
+    return base64.b64encode(buf.getvalue()).decode()
+
+
 def _fmt(v, nd=3) -> str:
     return "–" if v is None or pd.isna(v) else f"{v:.{nd}f}"
 
@@ -159,10 +172,10 @@ def cached_image(slug: str) -> str | None:
     automático saldría casi siempre con cinco de seis humedales sin imagen. La fecha va
     impresa dentro del propio PNG, así que no engaña sobre a qué día corresponde.
     """
-    pngs = sorted(config.IMG_DIR.glob(f"{slug}_*.png"))
-    if not pngs:
+    guardadas = sorted(config.IMG_DIR.glob(f"{slug}_*.jpg"))
+    if not guardadas:
         return None
-    return base64.b64encode(pngs[-1].read_bytes()).decode()
+    return base64.b64encode(guardadas[-1].read_bytes()).decode()
 
 
 def latest_image(site: Site, when: date, r: Rasters) -> str:
@@ -185,12 +198,12 @@ def latest_image(site: Site, when: date, r: Rasters) -> str:
     for ax in axes:
         ax.set_xticks([])
         ax.set_yticks([])
-    b64 = _png_b64(fig)
-    # Se guarda para los días en que no hay escena nueva, y se deja solo la última:
-    # son 300 KB por humedal y el histórico de imágenes no lo usa nadie.
-    for old in config.IMG_DIR.glob(f"{site.slug}_*.png"):
-        old.unlink(missing_ok=True)
-    (config.IMG_DIR / f"{site.slug}_{when.isoformat()}.png").write_bytes(base64.b64decode(b64))
+    b64 = _jpg_b64(fig)
+    # Se guarda para los días en que no hay escena nueva, y se deja solo la última: el
+    # histórico de imágenes no lo usa nadie.
+    for antigua in config.IMG_DIR.glob(f"{site.slug}_*.jpg"):
+        antigua.unlink(missing_ok=True)
+    (config.IMG_DIR / f"{site.slug}_{when.isoformat()}.jpg").write_bytes(base64.b64decode(b64))
     return b64
 
 
@@ -306,7 +319,7 @@ def render(results: dict[str, dict], run_date: date) -> str:
             if notes:
                 parts.append(f"<p><small>{' '.join(notes)}</small></p>")
         if res.get("image_b64"):
-            parts.append(f'<p><img src="data:image/png;base64,{res["image_b64"]}"></p>')
+            parts.append(f'<p><img src="data:image/jpeg;base64,{res["image_b64"]}"></p>')
 
     parts.append("<h2>Mapa</h2>")
     statuses = {slug: (r["site"], r["alerts"]) for slug, r in results.items()}

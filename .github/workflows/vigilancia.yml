@@ -35,9 +35,9 @@ jobs:
       - run: pip install -r requirements.txt
 
       # La imagen de la última fecha de cada humedal, para que el informe la tenga
-      # también los días sin escena nueva. Si la caché se pierde, el informe de ese día
-      # sale sin imágenes y se rehace al siguiente: no vale versionarla en el repo,
-      # porque serían 2 MB diarios de histórico que nadie va a mirar.
+      # también los días sin escena nueva. El repo lleva versionada una copia de las
+      # seis, así que si la caché se pierde el informe sale con imágenes viejas —cada
+      # una con su fecha impresa— en lugar de sin ninguna.
       - uses: actions/cache@v4
         with:
           path: data/img
