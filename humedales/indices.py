@@ -27,6 +27,10 @@ class Observation:
     cloud_frac: float      # fracción nube/sombra/alta prob. de nube sobre la parte cubierta
     valid_frac: float      # fracción del humedal con píxel válido
     blue_median: float     # reflectancia azul mediana en píxeles válidos (detector de neblina)
+    mndwi_thr: float       # umbral de agua usado en esta escena
+    thr_method: str        # otsu | fijo
+    water_nir_green: float | None  # infrarrojo cercano / verde sobre la semilla de agua
+    water_blue: float | None       # azul mediano sobre la semilla de agua
     site_ha: float
     water_ha: float        # agua libre: MNDWI > 0 y NDVI bajo (ha)
     water_frac: float      # water_ha / superficie válida
@@ -37,7 +41,7 @@ class Observation:
     ndci_mean: float | None    # clorofila media sobre el agua libre
     ndci_p90: float | None
     bloom_frac: float | None   # fracción del agua libre con NDCI > umbral
-    quality: str           # ok | nublado | neblina | incoherente | parcial | sin_datos
+    quality: str           # ok | nublado | neblina | espectro_anomalo | incoherente | parcial | sin_datos
 
     def to_row(self) -> dict:
         d = asdict(self)
@@ -89,6 +93,66 @@ def _nd(a: np.ndarray, b: np.ndarray) -> np.ndarray:
         return (a - b) / (a + b)
 
 
+def _otsu(values: np.ndarray) -> tuple[float, float]:
+    """Corte de Otsu sobre un histograma y su separabilidad.
+
+    Devuelve (umbral, separabilidad), donde la separabilidad es la fracción de la
+    varianza total que explica la partición: cerca de 1 hay dos modas claras
+    (agua y tierra), cerca de 0 el histograma es una sola nube y el corte no
+    significa nada.
+    """
+    hist, edges = np.histogram(values, bins=config.OTSU_BINS, range=(-1.0, 1.0))
+    total = hist.sum()
+    if total == 0:
+        return config.MNDWI_WATER, 0.0
+    p = hist.astype("float64") / total
+    centers = (edges[:-1] + edges[1:]) / 2.0
+    w0 = np.cumsum(p)                    # peso de la clase baja (tierra)
+    w1 = 1.0 - w0
+    m0 = np.cumsum(p * centers)
+    mt = m0[-1]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        between = (mt * w0 - m0) ** 2 / (w0 * w1)
+    if not np.isfinite(between).any():
+        return config.MNDWI_WATER, 0.0
+    k = int(np.nanargmax(between))
+    var_total = float(np.sum(p * (centers - mt) ** 2))
+    sep = float(between[k] / var_total) if var_total > 0 else 0.0
+    return float(centers[k]), sep
+
+
+def water_threshold(index: np.ndarray, valid: np.ndarray) -> tuple[float, str]:
+    """Umbral de agua de esta escena: Otsu si el histograma tiene dos modas, fijo si no."""
+    vals = index[valid]
+    vals = vals[~np.isnan(vals)]
+    if vals.size < config.OTSU_MIN_PIXELS:
+        return config.MNDWI_WATER, "fijo"
+    thr, sep = _otsu(vals)
+    if sep < config.OTSU_MIN_SEPARABILITY:
+        return config.MNDWI_WATER, "fijo"      # humedal seco o inundado por completo
+    if not config.OTSU_THR_MIN <= thr <= config.OTSU_THR_MAX:
+        return config.MNDWI_WATER, "fijo"      # el corte cae donde no puede estar la orilla
+    return round(thr, 4), "otsu"
+
+
+def water_spectrum(G: np.ndarray, NIR: np.ndarray, B: np.ndarray,
+                   seed: np.ndarray) -> tuple[float | None, float | None]:
+    """Forma del espectro sobre la semilla de agua: cociente infrarrojo/verde y azul mediano.
+
+    Sirve para detectar escenas cuya corrección atmosférica ha fallado sobre los
+    objetivos oscuros, que es el defecto que hacía desaparecer láminas de agua
+    perfectamente visibles. Ver la nota en config.
+    """
+    if seed.sum() * config.PIXEL_HA < config.WATER_SPECTRUM_MIN_HA:
+        return None, None
+    g = _stat(np.median, G, seed)
+    n = _stat(np.median, NIR, seed)
+    b = _stat(np.median, B, seed)
+    if g is None or n is None or g <= 0:
+        return None, b
+    return round(n / g, 3), b
+
+
 def _stat(fn, arr, mask) -> float | None:
     vals = arr[mask]
     vals = vals[~np.isnan(vals)]
@@ -126,7 +190,8 @@ def observe(site_slug: str, day: date, items: list[Item], geom,
     ndti = _nd(R, G)
     ndci = _nd(RE, R)
 
-    wet = valid & (mndwi > config.MNDWI_WATER)
+    mndwi_thr, thr_method = water_threshold(mndwi, valid)
+    wet = valid & (mndwi > mndwi_thr)
     water = wet & (ndvi < config.NDVI_OPEN_WATER)
     wet_veg = wet & ~water
     ndwi_water = valid & (ndwi > 0)
@@ -147,6 +212,17 @@ def observe(site_slug: str, day: date, items: list[Item], geom,
     incoherente = (scl_water_ha >= config.SCL_CHECK_MIN_HA
                    and water_ha < config.SCL_CHECK_RATIO * scl_water_ha)
 
+    # La semilla para el control espectral es la clase agua de la ESA, que es
+    # independiente de nuestros índices; si no la hay, se usa el agua propia.
+    seed = scl_water & valid
+    if seed.sum() * config.PIXEL_HA < config.WATER_SPECTRUM_MIN_HA:
+        seed = water
+    water_nir_green, water_blue = water_spectrum(G, NIR, B, seed)
+    espectro_anomalo = (
+        (water_nir_green is not None and water_nir_green > config.WATER_NIR_GREEN_MAX)
+        or (water_blue is not None and water_blue < config.WATER_BLUE_FLOOR)
+    )
+
     if coverage < 0.5:
         quality = "sin_datos"
     elif coverage < config.MIN_COVERAGE:
@@ -155,6 +231,8 @@ def observe(site_slug: str, day: date, items: list[Item], geom,
         quality = "nublado"
     elif blue_median is not None and blue_median > config.BLUE_HAZE:
         quality = "neblina"
+    elif espectro_anomalo:
+        quality = "espectro_anomalo"
     elif incoherente:
         quality = "incoherente"
     else:
@@ -166,6 +244,8 @@ def observe(site_slug: str, day: date, items: list[Item], geom,
         coverage=round(float(coverage), 4), cloud_frac=round(float(cloud_frac), 4),
         valid_frac=round(float(valid_frac), 4),
         blue_median=blue_median if blue_median is not None else float("nan"),
+        mndwi_thr=mndwi_thr, thr_method=thr_method,
+        water_nir_green=water_nir_green, water_blue=water_blue,
         site_ha=round(site_ha, 1),
         water_ha=round(water_ha, 1),
         water_frac=round(n_water / max(int(valid.sum()), 1), 4),

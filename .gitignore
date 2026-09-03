@@ -4,3 +4,4 @@ output/
 data/sites/
 *.pyc
 logs/
+data/backup/

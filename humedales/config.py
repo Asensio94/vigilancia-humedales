@@ -61,7 +61,31 @@ BLUE_HAZE = 0.12           # reflectancia azul mediana del sitio por encima de l
 SCL_CHECK_MIN_HA = 50      # solo se comprueba si SCL ve al menos esta agua
 SCL_CHECK_RATIO = 0.25     # agua por índice por debajo de esta fracción de la de SCL = incoherente
 
-MNDWI_WATER = 0.0          # píxel húmedo si MNDWI > 0
+# Control espectral del agua. El agua líquida absorbe con fuerza a partir del rojo,
+# así que sobre agua real el infrarrojo cercano queda por debajo del verde y el
+# espectro se apaga hacia longitudes de onda largas. Cuando la corrección atmosférica
+# sobreestima el aerosol pasa lo contrario: resta de más en el azul, hasta hundirlo a
+# cero, e infla el infrarrojo, con lo que el espectro del agua sube en vez de bajar.
+# Sobre tierra seca esas escenas coinciden con las buenas, porque el término que se
+# resta de más es despreciable frente a una reflectancia alta; el fallo solo se ve
+# sobre objetivos oscuros. Medido en Tablas de Daimiel sobre un núcleo fijo de 240 ha:
+# escenas buenas nir/verde 0,66-0,83, escenas falladas 1,60 y 2,74.
+WATER_SPECTRUM_MIN_HA = 20   # hectáreas mínimas de semilla de agua para poder comprobarlo
+WATER_NIR_GREEN_MAX = 1.10   # nir/verde sobre el agua por encima de esto = espectro no acuático
+WATER_BLUE_FLOOR = 0.002     # azul mediano sobre el agua por debajo = corrección atmosférica fallida
+
+MNDWI_WATER = 0.0          # umbral de reserva cuando el histograma no permite calcularlo
+
+# Umbral de agua adaptativo (Otsu). El umbral fijo daba por bueno que todos los
+# sensores y todas las atmósferas partieran el histograma en el mismo punto, y no
+# es así: el infrarrojo de onda corta de Sentinel-2C sale más alto y hunde el
+# índice de agua por debajo de cero sobre láminas perfectamente visibles. Otsu
+# busca el corte que mejor separa las dos modas del histograma de cada escena.
+OTSU_BINS = 256
+OTSU_MIN_PIXELS = 500      # con menos píxeles válidos el histograma no es fiable
+OTSU_MIN_SEPARABILITY = 0.60   # varianza entre clases / varianza total; por debajo, no hay dos modas
+OTSU_THR_MIN = -0.35       # fuera de esta banda el corte no puede ser la orilla
+OTSU_THR_MAX = 0.35          # píxel húmedo si MNDWI > 0
 NDVI_OPEN_WATER = 0.15     # agua libre si además NDVI < este valor; si no, vegetación inundada
 # NDCI (Mishra & Mishra 2012): 0.1 ≈ 25 mg/m³ de clorofila-a (eutrófico), 0.2 ≈ 40,
 # 0.3 ≈ 57 (hipereutrófico). Muchos humedales someros españoles viven por encima de

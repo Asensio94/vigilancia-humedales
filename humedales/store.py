@@ -7,10 +7,13 @@ from . import config
 from .indices import Observation
 
 COLUMNS = ["site", "date", "n_scenes", "scenes", "coverage", "cloud_frac", "valid_frac",
-           "blue_median", "site_ha", "water_ha", "water_frac", "wet_veg_ha", "ndwi_water_ha", "scl_water_ha",
+           "blue_median", "mndwi_thr", "thr_method", "water_nir_green", "water_blue",
+           "site_ha", "water_ha", "water_frac",
+           "wet_veg_ha", "ndwi_water_ha", "scl_water_ha",
            "ndti_mean", "ndci_mean", "ndci_p90", "bloom_frac", "quality", "processed_at"]
 
-NUMERIC = ["coverage", "cloud_frac", "valid_frac", "blue_median", "site_ha", "water_ha",
+NUMERIC = ["coverage", "cloud_frac", "valid_frac", "blue_median", "mndwi_thr",
+           "water_nir_green", "water_blue", "site_ha", "water_ha",
            "water_frac", "wet_veg_ha", "ndwi_water_ha", "scl_water_ha", "ndti_mean",
            "ndci_mean", "ndci_p90", "bloom_frac"]
 
