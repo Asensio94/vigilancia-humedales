@@ -1,0 +1,11 @@
+[
+  {
+    "site": "albufera-valencia",
+    "date": "2026-09-11",
+    "kind": "eutrofizacion",
+    "severity": "media",
+    "message": "Pico de NDCI 0.182 en los últimos 20 días, por encima de los picos habituales en estas fechas (0.109 es el percentil 90 de 53 ventanas de años anteriores), con el 27 % de la lámina por encima de 0.2.",
+    "value": 0.1821,
+    "reference": 0.10918000000000001
+  }
+]
