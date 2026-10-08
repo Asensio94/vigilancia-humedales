@@ -392,12 +392,126 @@ def _glosario(pais: str = "ES") -> list[tuple[str, str, str]]:
 PROSA = {"es": (_bloques, _glosario)}
 
 
+def _num(v: float) -> str:
+    """A parameter value with Spanish decimal comma: 0,22. Integers stay as they are."""
+    if float(v).is_integer():
+        return _n(v)
+    return f"{v}".replace(".", ",")
+
+
+def _pasos(results: dict | None, pais: str) -> str:
+    """Numbered steps from the source to the figure, with the parameters in force."""
+    d = _datos(results, pais)
+    mar = (" En los humedales costeros se quita antes la franja de mar con la línea de costa "
+           "de OpenStreetMap." if pais == "FR" else "")
+    pasos = [
+        f"<b>Imagen.</b> Cada pocos días se descargan las imágenes Sentinel-2 L2A del catálogo "
+        f"público Earth Search, recortadas al polígono Natura 2000 de cada humedal y pasadas a "
+        f"metros ({d['crs']}) con píxel de {config.RESOLUTION_M} m; {d['grande']} a "
+        f"{d['grande_res']} m.{mar}",
+        f"<b>Fechas válidas.</b> Se tira la fecha si queda nublado más del "
+        f"{_p(config.MAX_CLOUD_FRAC)} del humedal, si las escenas cubren menos del "
+        f"{_p(config.MIN_COVERAGE)}, si hay neblina o si el espectro del agua delata una "
+        f"corrección atmosférica fallida.",
+        f"<b>Agua.</b> Un píxel es agua si su MNDWI pasa del corte calculado ese día con el "
+        f"método de Otsu (o de {_num(config.MNDWI_WATER)} si el histograma no lo permite). Es "
+        f"agua libre si además su NDVI es menor que {_num(config.NDVI_OPEN_WATER)}, y "
+        f"vegetación inundada si no. Contando píxeles salen las hectáreas.",
+        "<b>Turbidez y clorofila.</b> NDTI y NDCI se promedian solo sobre el agua libre.",
+        f"<b>Valor de ahora.</b> La mediana de las fechas válidas de los últimos "
+        f"{al.CURRENT_DAYS} días, si hay al menos {al.CURRENT_MIN_OBS}; si no, la última.",
+        f"<b>Comparación histórica.</b> Se compara con las fechas de años anteriores a "
+        f"±{al.SEASON_WINDOW_DAYS} días del mismo día del año, desde julio de 2017, con un "
+        f"mínimo de {al.MIN_HISTORY} observaciones de referencia.",
+        f"<b>Alerta.</b> Desecación si la lámina queda por debajo del percentil 10 de esa "
+        f"época; descenso brusco si cae por debajo del {_p(al.DROP_RATIO)} de la mediana de los "
+        f"{al.RECENT_DAYS} días previos y además más que el {_p(1 - al.DROP_SEASON_PERCENTILE)} "
+        f"de las caídas de esa época; eutrofización si el pico de NDCI supera el percentil "
+        f"{100 * al.BLOOM_PERCENTILE:.0f} de los picos de la época más "
+        f"{_num(al.BLOOM_MARGIN)}; turbidez si el NDTI supera su percentil 90.",
+    ]
+    return '<ol class="pasos">' + "".join(f"<li>{x}</li>" for x in pasos) + "</ol>"
+
+
+def _parametros(pais: str) -> str:
+    """table.params with every threshold, read from `config` and `alerts`."""
+    gruesos = [SITES[s].name for s in config.RESOLUTION_BY_SITE if SITES[s].country == pais]
+    filas = [
+        ("Píxel de trabajo", f"{config.RESOLUTION_M} m",
+         f"{', '.join(gruesos)} a {config.RESOLUTION_BY_SITE[EJEMPLO_GRANDE[pais]]} m."
+         if gruesos else ""),
+        ("Nubes en el humedal", f"≤ {_p(config.MAX_CLOUD_FRAC)}", "Si hay más, la fecha se tira."),
+        ("Cobertura de las escenas", f"≥ {_p(config.MIN_COVERAGE)}",
+         "Si hay menos, la fecha se tira."),
+        ("Azul de nube", f"&gt; {_num(config.BLUE_CLOUD)}",
+         "Reflectancia azul a partir de la cual un píxel es nube."),
+        ("Azul de neblina", f"&gt; {_num(config.BLUE_HAZE)}",
+         "Azul mediano del humedal; la fecha se tira."),
+        ("Infrarrojo / verde sobre el agua", f"&gt; {_num(config.WATER_NIR_GREEN_MAX)}",
+         "Corrección atmosférica fallida; la fecha se tira."),
+        ("Otsu: píxeles válidos", f"≥ {_num(config.OTSU_MIN_PIXELS)}",
+         "Para poder calcular el corte del día."),
+        ("Otsu: separabilidad", f"≥ {_num(config.OTSU_MIN_SEPARABILITY)}",
+         "Si no, no hay dos grupos que separar."),
+        ("Otsu: banda del corte", f"{_num(config.OTSU_THR_MIN)} a {_num(config.OTSU_THR_MAX)}",
+         "Fuera de ella se usa el corte de reserva."),
+        ("Corte de reserva de MNDWI", _num(config.MNDWI_WATER),
+         "Cuando falla alguna de las tres condiciones."),
+        ("NDVI del agua libre", f"&lt; {_num(config.NDVI_OPEN_WATER)}",
+         "Por encima, vegetación inundada."),
+        ("Valor actual", f"{al.CURRENT_DAYS} días", "Mediana de las fechas válidas."),
+        ("Ventana estacional", f"±{al.SEASON_WINDOW_DAYS} días", "En años anteriores."),
+        ("Referencia mínima", f"{al.MIN_HISTORY} obs.", "Sin ellas no hay alerta relativa."),
+        ("Desecación", "percentil 10", "De la lámina en esa época."),
+        ("Descenso brusco", f"&lt; {_p(al.DROP_RATIO)}",
+         f"De la mediana de los {al.RECENT_DAYS} días previos, y peor que el "
+         f"{_p(1 - al.DROP_SEASON_PERCENTILE)} de las caídas de la época."),
+        ("Eutrofización", f"percentil {100 * al.BLOOM_PERCENTILE:.0f} + {_num(al.BLOOM_MARGIN)}",
+         f"Del pico de NDCI; alta si además pasa de {_num(config.NDCI_BLOOM)}."),
+        ("Turbidez", "percentil 90", "Del NDTI en esa época."),
+    ]
+    return ('<table class="params"><thead><tr><th>Parámetro</th><th class="num">Valor</th>'
+            "<th>Uso</th></tr></thead><tbody>"
+            + "".join(f'<tr><td>{a}</td><td class="num">{b}</td><td>{c}</td></tr>'
+                      for a, b, c in filas)
+            + "</tbody></table>")
+
+
+# Validation, as measured and written up in the README (Contraste y validación). Like
+# PARPADEO, these are one-off measurements, not figures the report recomputes.
+VALIDACION = {
+    "ES": "<p>El área inundada que mide el satélite en Doñana (agua libre más vegetación "
+          "inundada) se ha comparado con el calado medido en el suelo de la marisma por la "
+          "ICTS-Doñana: la correlación es de 0,94 (Pearson; 0,78 de Spearman) sobre las 168 "
+          "fechas de 2022 a 2026 en que hay las dos medidas, y el área sube con cada tramo de "
+          "calado. Las hectáreas absolutas también se sostienen: la lámina permanente del Mar "
+          "Menor sale entre 12.950 y 13.340 ha de mediana anual en nueve años, frente a las "
+          "13.500 ha que se citan habitualmente para la laguna.</p>",
+    "FR": "<p><b>Pendiente.</b> Todavía no hay contraste con medidas de campo: Hub'Eau publica "
+          "el nivel de los acuíferos y el caudal de los ríos sin clave, pero aún no está "
+          "enganchado. La única comprobación hecha es de orden de magnitud: recortado el mar, "
+          "la Camarga mide 20.538 ha de lámina el 2 de septiembre de 2026, que es lo que suman "
+          "Vaccarès, los étangs inferiores y los salinos de Giraud.</p>",
+}
+
+
 def section(results: dict | None = None, pais: str = "ES", idioma: str = "es") -> str:
-    """La sección completa, lista para insertar en el informe."""
+    """The «Cómo se calcula» section, ready to insert in the report.
+
+    Steps and parameters first, then validation, then the detailed blocks (which end
+    with the limits) and the glossary. The `metodologia` anchor is kept because the
+    README and outside links point to it.
+    """
     prosa, glosario = PROSA[idioma]
     bloques = [b for b in prosa(results, pais) if b[0]]
-    out = ['<h2 id="metodologia">Metodología</h2>',
-           '<p class="indice">'
+    out = ['<section class="method" id="metodologia">',
+           "<h2>Cómo se calcula</h2>",
+           _pasos(results, pais),
+           '<h3 id="parametros">Parámetros</h3>',
+           _parametros(pais),
+           '<h3 id="validacion">Validación</h3>',
+           VALIDACION[pais],
+           '<p class="indice">En detalle: '
            + " · ".join(f'<a href="#{ancla}">{titulo}</a>' for ancla, titulo, _ in bloques)
            + ' · <a href="#glosario">Glosario de siglas</a></p>']
     for ancla, titulo, cuerpo in bloques:
@@ -408,4 +522,5 @@ def section(results: dict | None = None, pais: str = "ES", idioma: str = "es") -
         exp = "" if expansion == "—" else f" <i>{expansion}</i>"
         out.append(f"<dt>{sigla}{exp}</dt><dd>{texto}</dd>")
     out.append("</dl>")
+    out.append("</section>")
     return "\n".join(out)
