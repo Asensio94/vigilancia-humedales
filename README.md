@@ -207,10 +207,19 @@ productos L2A. Earth Search ya lo aplica dentro de sus COG y lo indica con la pr
 vez deja la mitad del humedal con reflectancia negativa y arruina todos los índices (fue el primer
 error del prototipo).
 
+Pero la propiedad solo es fiable cuando dice `true`. Muchas escenas marcadas `false` también llegan
+con el offset ya quitado: en una parcela agrícola fija junto a Moguer, en 2025, el azul mediano es de
+288 y 280 DN en escenas `true` y de 208 y 336 DN en escenas `false`, cuando con el offset dentro
+rondaría los 1.300. Fiarse del `false` restaba 0,1 dos veces, el azul acababa en el mínimo de 1e-4 y la
+fecha se descartaba. Ahora lo deciden los datos (`indices.offset_already_applied`): con el offset
+dentro nada en tierra baja de 1.000 DN en el azul, así que si el percentil 1 del azul de la zona
+cargada queda por debajo, el offset ya está fuera. Al reprocesar las 141 fechas con el azul mediano
+recortado (≤ 0,0002), 72 pasaron a válidas (ver *Cuando la atmósfera se corrige mal*).
+
 ## Pipeline
 
 1. `sites.py`: catálogo de humedales con sus códigos Natura 2000; descarga y cachea la geometría.
-2. `stac.py`: busca escenas por bbox y fecha, agrupa por día solar, decide escala y offset por escena.
+2. `stac.py`: busca escenas por bbox y fecha, agrupa por día solar, lee escala y offset declarados por escena.
 3. `indices.py`: carga con `odc-stac` las bandas B02, B03, B04, B05, B08, B11 y SCL recortadas al
    humedal, proyectadas al sistema en metros de su país a 20 m (40 m en Doñana y la Camarga, ver
    *Resolución por humedal*), y calcula por fecha:
@@ -357,6 +366,40 @@ las alertas: su concordancia con la ESA es 0,92. En Tablas de Daimiel el cambio 
 `espectro_anomalo` y bajó las `incoherente` de 41 a 7.
 
 Atacar la causa en vez del síntoma es lo que permitió recuperar el satélite en vez de perderlo.
+
+Parte de lo que este control atrapaba no era la atmósfera, sino un error nuestro con el offset
+radiométrico (ver la nota en *Fuentes*). En las escenas en las que Earth Search marca
+`boa_offset_applied: false` sin que sea cierto, el pipeline restaba 0,1 dos veces, el azul y el verde
+del agua se hundían al mínimo y la fecha caía como `espectro_anomalo`, `nublado` o `sin_datos`. Había
+141 fechas así de 7.846, en todos los humedales salvo La Dombes: la primera de diciembre de 2020
+(Lac de Grand-Lieu) y casi todas de 2022 en adelante. Y estaban sesgadas hacia S2C, porque en noviembre de
+2024 todas las afectadas son días con escenas de S2A y S2C, de la puesta en servicio de S2C. 77 de
+las 683 `espectro_anomalo` venían de aquí. Ninguna cifra publicada era falsa: el error solo tiraba
+fechas buenas. Con el offset decidido a partir de los datos se reprocesaron esas 141 fechas:
+
+| Humedal | afectadas | pasan a válidas | válidas antes → después |
+|---|---|---|---|
+| l'Albufera de València | 10 | 6 | 352 → 358 |
+| Grande Brenne | 17 | 5 | 292 → 297 |
+| Camarga | 16 | 10 | 598 → 608 |
+| La Dombes | 0 | 0 | 17 → 17 |
+| Doñana | 10 | 6 | 347 → 353 |
+| Fuente de Piedra | 13 | 7 | 420 → 427 |
+| Gallocanta | 14 | 7 | 503 → 510 |
+| Lac de Grand-Lieu | 13 | 5 | 249 → 254 |
+| Lac du Der-Chantecoq | 19 | 12 | 337 → 349 |
+| Mar Menor | 19 | 12 | 361 → 373 |
+| Marais Poitevin | 6 | 0 | 140 → 140 |
+| Tablas de Daimiel | 4 | 2 | 264 → 266 |
+| **Total** | **141** | **72** | **3.880 → 3.952** |
+
+Las 69 que no se recuperan tienen motivos propios: nubes según la SCL, cobertura parcial o un
+espectro de agua que sigue siendo anómalo (en Doñana, el 14 de febrero de 2025 el infrarrojo/verde sobre
+el agua sale 1,44). Solo cinco conservan el azul recortado. Tres están nubladas en más del 85 %, y las
+otras dos, del Mar Menor (24 de febrero de 2022 y 9 de enero de 2026), son escenas marcadas `true`
+cuyo agua llega con DN 1: corrección atmosférica fallida de verdad. Las `espectro_anomalo` bajan de 683
+a 611, y la fracción de fechas válidas de S2C sube del 41 % al 46 % (la de S2A y S2B, del 50,4 % al
+50,9 %). Así que una parte de la mala fama de S2C también era este error.
 
 ### El umbral de clorofila de la literatura no sirve aquí
 
