@@ -5,3 +5,4 @@ publicar/
 *.pyc
 logs/
 data/backup/
+data/cache/

@@ -1,0 +1,113 @@
+name: Regadío fuera del suelo regable
+
+# Una pasada por campaña, no diaria: el plástico de los frutos rojos se mide de enero a
+# marzo y la cifra de una campaña no cambia después. Se lanza a mediados de abril, cuando
+# las escenas de finales de marzo ya están en el catálogo, y a mano para rehacer una
+# campaña anterior (por ejemplo, si cambia la cartografía oficial).
+on:
+  schedule:
+    - cron: "0 7 15 4 *"
+  workflow_dispatch:
+    inputs:
+      year:
+        description: "Campaña (vacío = la última completa)"
+        required: false
+      refresh_zoning:
+        description: "Volver a descargar la zonificación del plan"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# Comparte grupo con la vigilancia diaria: las dos escriben en master y en gh-pages.
+concurrency:
+  group: vigilancia
+  cancel-in-progress: false
+
+jobs:
+  regadio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # SIGPAC son unos 40 MB por campaña para los municipios del Condado. FEGA solo
+      # sirve las dos últimas, así que la caché es también la única copia de las viejas.
+      - uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: sigpac-${{ github.run_id }}
+          restore-keys: sigpac-
+
+      - name: Detectar y cruzar
+        env:
+          YEAR: ${{ inputs.year }}
+          REFRESH: ${{ inputs.refresh_zoning }}
+        run: |
+          args=""
+          [ -n "$YEAR" ] && args="$args --year $YEAR"
+          [ "$REFRESH" = "true" ] && args="$args --refresh-zoning"
+          python -m humedales.cli irrigation --site donana $args
+
+      - name: Guardar el resultado
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/irrigation data/legal
+          if git diff --cached --quiet; then
+            echo "Sin cambios."
+          else
+            git commit -m "Regadío fuera del SAR, $(date -u +%Y-%m-%d)"
+            git pull --rebase --autostash origin master
+            git push origin HEAD:master
+          fi
+
+      # Misma rama huérfana que el informe diario: se parte de lo publicado y solo se
+      # añade o reemplaza esta página.
+      - name: Publicar
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          rm -rf publicar && mkdir publicar
+          git -C publicar init -q -b gh-pages
+          git -C publicar config user.name "github-actions[bot]"
+          git -C publicar config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C publicar remote add origin "https://x-access-token:$TOKEN@github.com/$REPO.git"
+          if git -C publicar fetch -q --depth 1 origin gh-pages 2>/dev/null; then
+            git -C publicar checkout -q FETCH_HEAD -- . || true
+          fi
+          cp output/regadio_donana.html publicar/regadio.html
+          cp data/irrigation/donana_*.geojson publicar/ 2>/dev/null || true
+          touch publicar/.nojekyll
+          cd publicar
+          git add -A
+          git commit -q -m "Regadío fuera del SAR, $(date -u +%Y-%m-%d)"
+          git push -q --force origin HEAD:gh-pages
+
+      - name: Resumen de la ejecución
+        if: always()
+        run: |
+          {
+            echo "### Regadío fuera del suelo regable · Doñana"
+            python - <<'EOF'
+          import glob, json
+          files = sorted(glob.glob("data/irrigation/donana_*.json"))
+          if not files:
+              print("No se generó resultado.")
+          for f in files:
+              s = json.load(open(f, encoding="utf-8"))
+              print(f"- {s['campaign']}: {s['outside_ha']} ha fuera del SAR en {s['outside_patches']} manchas "
+                    f"({s['outside_declared_ha']} ha declaradas en SIGPAC)")
+          EOF
+            echo
+            echo "https://asensio94.github.io/vigilancia-humedales/regadio.html"
+          } >> "$GITHUB_STEP_SUMMARY"

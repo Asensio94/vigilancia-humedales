@@ -437,6 +437,97 @@ construcción y el anuario de aforos nacional solo se descarga a mano.
   sensor (la subida aparente salía igual en S2A y en S2B). Cualquier lectura entre años tiene que
   fijar la ventana estacional; las alertas ya lo hacen, la vista de la serie no.
 
+## Regadío fuera del suelo regable (Doñana)
+
+Segundo producto del repositorio, con otra pregunta: no cuánta agua hay en el humedal, sino cuánta
+tierra se riega a su alrededor donde el plan no lo permite. El Plan Especial de la Corona Forestal
+de Doñana (2014) delimitó el **suelo agrícola regable** (SAR): unas 9.500 ha dentro de un ámbito
+de 64.400 ha en el Condado de Huelva. Fuera del SAR el plan no admite regadío. El acuífero que
+alimenta la marisma es el mismo del que beben esas fincas.
+
+La página está en
+[/regadio.html](https://asensio94.github.io/vigilancia-humedales/regadio.html) y la regenera una
+vez por campaña `.github/workflows/regadio.yml` (15 de abril, o a mano). Cada campaña deja
+`data/irrigation/donana_<año>.geojson` (las manchas) y `.json` (el resumen y el embudo).
+
+**La firma que se busca es el plástico.** El fresón y los frutos rojos de Huelva se cultivan bajo
+macrotúnel de enero a marzo, y el plástico es fácil de ver desde Sentinel-2 y difícil de confundir:
+un regadío de cereal o de cítricos no deja esa huella, así que esto mide el regadío de frutos rojos,
+no todo el regadío. Por observación, un píxel es plástico si cumple a la vez:
+
+- RPGI = 100·azul / (1 − media(azul, verde, NIR)) ≥ 10 (índice de invernadero de Yang et al.)
+- PMLI = (SWIR1 − rojo) / (SWIR1 + rojo) ≤ 0,10 (Lu et al.; el plástico no tiene el SWIR alto del suelo seco)
+- azul / rojo ≥ 0,75, que quita la arena amarilla del Abalario, el falso positivo más frecuente
+- azul < 0,22 y SCL de suelo, vegetación o agua, para dejar fuera nubes y bruma
+
+Después, en rejilla de 10 m (EPSG:25830): plástico en **al menos 2 fechas** válidas de la ventana;
+fuera del SAR y a más de 20 m de su borde (dos píxeles, para que el error de georreferencia y de la
+cartografía no cuente como infracción); en un recinto SIGPAC de uso agrario (se quitan caminos,
+edificaciones, improductivos, agua y urbano), y en manchas de al menos 0,5 ha. Cada mancha lleva su
+zona del plan, su distancia al SAR, el recinto SIGPAC mayoritario con su uso y coeficiente de
+regadío declarados, y un enlace a la consulta pública del visor SIGPAC. **Nunca se guarda ni se
+publica quién es el titular**: SIGPAC abierto no lo trae, y no se buscará en otras fuentes.
+
+Cuatro campañas calculadas:
+
+| campaña | fechas (despejadas) | plástico en el ámbito | dentro del SAR | fuera del SAR | % del plástico | manchas | fuera y declarado en SIGPAC |
+|---|---|---|---|---|---|---|---|
+| 2023 | 11 (8) | 4.560 ha | 3.953 ha | 250,8 ha | 5,5 % | 144 | 237,6 ha |
+| 2024 | 9 (6) | 2.731 ha | 2.311 ha | 135,5 ha | 5,0 % | 103 | 130,1 ha |
+| 2025 | 14 (6) | 5.235 ha | 4.435 ha | 307,0 ha | 5,9 % | 179 | 291,2 ha |
+| 2026 | 13 (9) | 4.533 ha | 3.968 ha | 176,6 ha | 3,9 % | 108 | 168,3 ha |
+
+Las hectáreas siguen al tiempo que hizo más que a las fincas: como se exige plástico en dos fechas,
+un invierno nublado rebaja todo el ámbito a la vez (2024 tuvo una sola fecha despejada antes del 20
+de febrero y se queda en la mitad de plástico, dentro y fuera del SAR). Lo comparable entre años es
+la proporción: **entre el 4 y el 6 % del plástico del ámbito está fuera del suelo regable**, y casi
+todo (el 95 % de las hectáreas, todos los años) está en recintos que SIGPAC declara como invernadero o regadío.
+Entre el 84 y el 91 % de las hectáreas están a 50 m o menos del SAR, la mayoría a 11-20 m: son fincas
+que siguen más allá de la línea, no claros abiertos en mitad del pinar. Por zona del plan se reparte
+casi a medias entre la A (forestal) y la C (agrícola no regable).
+
+**Comprobado con la ortofoto.** Las 144 manchas de 2023 se miraron sobre el PNOA del IGN (vuelo
+de junio de 2022, 25 cm) y se clasificaron a ojo en `data/irrigation/validation/donana_2023_PNOA2022.csv`:
+
+| etiqueta | manchas | ha |
+|---|---|---|
+| invernadero (túnel cubierto o solo los arcos) | 115 | 198,0 |
+| cultivo sin estructura visible | 27 | 46,5 |
+| no agrícola | 2 | 6,3 |
+
+El 80 % de las manchas (79 % de las hectáreas) muestra túneles y el 99 % es terreno agrícola. La
+cifra de túneles es un mínimo: el vuelo es de verano, cuando muchos túneles ya están desmontados. Los
+dos falsos positivos son franjas de arena en el pinar, probablemente cortafuegos sobre recintos SIGPAC
+forestales, que el filtro azul/rojo no llega a separar del plástico; si se repiten en otras campañas,
+habrá que filtrarlos por forma (largos y estrechos). **La clasificación la hizo Claude (un modelo de
+IA) sobre las mismas imágenes y está pendiente de revisión humana**. La página enseña cada mancha con
+la ortofoto pedida en directo al WMS del IGN y su contorno encima, para que se pueda discutir una a
+una. Para rehacerla sobre otra campaña, `validation.contact_sheets` genera hojas numeradas en
+`data/cache/`, y el CSV se rellena con `validation.write_labels`.
+
+**Qué no dice esto.** Es un indicio, no una infracción. La regularización de 2014 tuvo excepciones
+(art. 26.6 del plan) que no están en la capa, el SAR se ha revisado y puede volver a hacerlo, y que
+SIGPAC declare un recinto como regadío dice qué cobra de la PAC, no qué agua tiene concedida. Las
+concesiones de la Confederación no son públicas como capa; si algún día lo son, este cruce es el
+que hay que rehacer. Tampoco se compara con el informe de WWF (2021), que contó 1.653 ha fuera del
+SAR por fotointerpretación y con la delimitación anterior: otro método y otro suelo de referencia.
+
+**SIGPAC caduca.** FEGA solo publica la campaña en curso y la anterior, así que las campañas viejas
+se cruzan con el SIGPAC más cercano que siga en línea (lo dice el resumen, `sigpac_campaign`) y la
+caché del workflow es la única copia de los ficheros que FEGA retira.
+
+**Un error del catálogo que también afectaba a la serie diaria.** Earth Search marca algunas escenas
+con `earthsearch:boa_offset_applied = false` cuando el desplazamiento de −0,1 de la línea base 04.00
+ya está aplicado: sus valores de azul en bruto rondan 200-340 en vez de 1.200-1.340. Si se resta
+otra vez, el azul se va a cero y el plástico desaparece. Aquí no se fía de la etiqueta:
+`offset_already_applied` mira el percentil 1 de los datos. La serie de agua hacía lo mismo hasta que se corrigió con el mismo
+criterio (ver *Ojo con el offset radiométrico*).
+
+**Siguientes sitios.** Tablas de Daimiel (pozos del acuífero 23: aquí la firma sería verdor de
+regadío en verano, NDVI alto en julio-agosto en secano declarado) y Mar Menor (zonas de la Ley
+3/2020 de la CARM y regadío de la CHS, cuyas capas traen un campo `TITULARES` que no se descargará).
+
+
 ## Pendiente
 
 1. Enganchar Hub'Eau como contexto de campo de los humedales franceses, que es la pieza que en el
@@ -447,6 +538,7 @@ construcción y el anuario de aforos nacional solo se descarga a mano.
 5. Recuperar las fechas de espectro anómalo con una corrección atmosférica propia (DOS o similar)
    en vez de descartarlas.
 6. Servicio web con suscripción por humedal, compartiendo infraestructura con el observatorio de alegaciones.
+7. Llevar el cruce de regadío a Tablas de Daimiel y Mar Menor (ver la sección de regadío).
 
 ## Uso
 
@@ -457,6 +549,7 @@ construcción y el anuario de aforos nacional solo se descarga a mano.
 .venv/Scripts/python.exe -m humedales.cli report              # informe desde las series guardadas
 .venv/Scripts/python.exe -m humedales.cli backfill            # histórico completo desde 2017
 .venv/Scripts/python.exe -m humedales.cli mask                # mide el área inundable de cada humedal
+.venv/Scripts/python.exe -m humedales.cli irrigation --year 2025  # regadío fuera del suelo regable
 ```
 
 Genera `output/informe_<fecha>.html` (resumen, alertas, gráficas de serie, imagen de la última fecha,
@@ -541,6 +634,9 @@ el mismo comando para volver a intentarlas.
 | EEA Natura 2000 (ArcGIS REST) | polígono de cada humedal por código de sitio | público |
 | OpenStreetMap Overpass | trazos `natural=coastline` para recortar el mar de los humedales costeros | público, exige `User-Agent` |
 | ICTS-Doñana Hidromet (`datos-automaticos.icts-donana.es`) | calado diario de la marisma y lluvia, medidos en el suelo | público, CC BY 4.0, 100 peticiones/hora por IP |
+| REDIAM, WFS `REDIAM_zonificacion_plan_regadios_corona_forestal_donana` (capa `Zona_B_C_regable`) | zonificación del Plan Especial de la Corona Forestal (Decreto 178/2014): suelo agrícola regable (`SAR_1025`) y zonas A, B y C | público, sin clave; copia versionada en `data/legal/` |
+| FEGA, descarga ATOM de recintos SIGPAC | uso declarado (`uso_sigpac`) y coeficiente de regadío de cada recinto, por municipio y campaña | público; solo las dos últimas campañas en línea. No contiene titulares |
+| IGN, PNOA histórico (WMS `https://www.ign.es/wms/pnoa-historico`, capas `PNOA2022`, `PNOA2019`) | ortofoto de 25 cm para comprobar las manchas de regadío; la página la enlaza, no la copia | público, CC BY 4.0. Pedir PNG: en JPEG con `Accept-Encoding: gzip` responde 500 |
 
 **Los contornos van versionados, y eso es deliberado.** `data/sites/` guarda el polígono de cada
 humedal y la línea de costa con la que se recorta, y está en el repositorio en vez de ignorado.

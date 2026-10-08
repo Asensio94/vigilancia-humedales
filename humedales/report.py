@@ -304,8 +304,11 @@ SIBLINGS = [
 OWN_SIBLING = "Vigilancia de humedales"
 
 
-def site_footer(pais: str) -> str:
-    """Sources and licences of this project, then the shared principle and siblings."""
+def site_footer(pais: str, fuentes: list[str] | None = None) -> str:
+    """Sources and licences of this project, then the shared principle and siblings. A page
+    with sources of its own (the irrigation one) passes them instead of the wetland ones."""
+    if fuentes is not None:
+        return _footer(fuentes)
     fuentes = [
         "Imágenes: Copernicus Sentinel-2 L2A, servidas por Earth Search (Element 84, AWS).",
         "Contornos de los humedales: red Natura 2000 (Agencia Europea de Medio Ambiente).",
@@ -318,6 +321,10 @@ def site_footer(pais: str) -> str:
     fuentes.append('Código con licencia MIT en '
                    '<a href="https://github.com/Asensio94/vigilancia-humedales">'
                    'github.com/Asensio94/vigilancia-humedales</a>.')
+    return _footer(fuentes)
+
+
+def _footer(fuentes: list[str]) -> str:
     items = "\n".join(
         f'    <li aria-current="page"><a href="{url}">{name}</a></li>' if name == OWN_SIBLING
         else f'    <li><a href="{url}">{name}</a></li>'
@@ -358,6 +365,8 @@ def render(results: dict[str, dict], run_date: date, pais: str = "ES") -> str:
         f'<a aria-current="page">{nombre}</a>' if codigo == pais
         else f'<a href="{fichero}">{nombre}</a>'
         for codigo, (nombre, fichero) in PAISES.items())
+    if pais == "ES":
+        paises += ' · <a href="regadio.html">Regadío fuera del suelo regable en Doñana</a>'
     parts = [
         "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\">",
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
