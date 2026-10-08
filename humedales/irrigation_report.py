@@ -11,7 +11,7 @@ from shapely.ops import unary_union
 
 from . import config, legal, validation
 from .irrigation import IrrigationSite
-from .report import CSS, _ha
+from .report import ACCENT_CSS, COMMON_CSS, CSS, FONTS_URL, _ha, site_footer
 
 USE_NAMES = {"IV": "invernadero / bajo plástico", "TA": "tierra arable", "FO": "forestal",
              "FY": "frutales", "CI": "cítricos", "PR": "pasto arbustivo", "PA": "pasto con arbolado",
@@ -179,7 +179,8 @@ def _map(zones, fc: dict) -> str:
                        ["ha", "plastic_dates", "plan_zone", "sigpac_use", "sigpac_irrigation_coef"],
                        ["ha", "fechas con plástico", "zona del plan", "uso SIGPAC", "coef. regadío"])).add_to(m)
     folium.LayerControl(collapsed=False).add_to(m)
-    return m._repr_html_()
+    return ('<iframe class="mapa" title="Mapa del plástico fuera del suelo regable" '
+            f'srcdoc="{html.escape(m.get_root().render())}"></iframe>')
 
 
 def render(site: IrrigationSite) -> str:
@@ -218,21 +219,29 @@ def render(site: IrrigationSite) -> str:
         '<!doctype html><html lang="es"><head><meta charset="utf-8">',
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
         f"<title>Regadío fuera del suelo regable · {html.escape(site.name)} · {s['campaign']}</title>",
-        f"<style>{CSS}html{{color-scheme:light}}body{{background:#fff}}{CHIP_CSS}</style></head><body>",
-        f"<h1>Regadío fuera del suelo regable · {html.escape(site.name)}</h1>",
-        '<p class="nav"><small><a href="index.html">Vigilancia de humedales · España</a></small></p>',
-        f"<p>Cultivos bajo plástico vistos por Sentinel-2 en la campaña {s['campaign']}, cruzados con la "
-        "zonificación oficial del Plan Especial de la Corona Forestal de Doñana (Decreto 178/2014). "
-        "El plan solo permite regar en los <em>suelos agrícolas regables</em> (SAR); el resto de su ámbito "
-        "es forestal o agrícola de secano. Lo que hay aquí son <strong>indicios para comprobar, no "
-        "infracciones</strong>: ver la sección «Qué no dice este mapa».</p>",
-        '<div class="kpi">',
-        f"<div>Ámbito del plan<b>{_ha(s['plan_ha'])} ha</b></div>",
-        f"<div>Suelo regable (SAR)<b>{_ha(s['irrigable_ha'])} ha</b></div>",
-        f"<div>Plástico dentro del SAR<b>{_ha(s['plastic_in_irrigable_ha'])} ha</b></div>",
-        f"<div>Plástico fuera del SAR<b>{_d(s['outside_ha'])} ha</b><small>{s['outside_patches']} manchas</small></div>",
-        f"<div>…declarado en SIGPAC<b>{_d(s['outside_declared_ha'])} ha</b><small>invernadero o regadío</small></div>",
+        '<link rel="preconnect" href="https://fonts.googleapis.com">',
+        '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
+        f'<link rel="stylesheet" href="{html.escape(FONTS_URL)}">',
+        f"<style>\n{COMMON_CSS}\n{ACCENT_CSS}\n{CSS}{CHIP_CSS}</style></head><body>",
+        '<header class="site-header">',
+        "<h1>Regadío fuera del <span>suelo regable</span></h1>",
+        '<nav class="paises label" aria-label="Páginas"><a href="index.html">España</a> · '
+        '<a href="france.html">Francia</a> · <a aria-current="page">Regadío fuera del suelo regable '
+        "en Doñana</a></nav>",
+        f'<p class="lede">Cultivos bajo plástico vistos por Sentinel-2 en la campaña {s["campaign"]}, '
+        "cruzados con la zonificación oficial del Plan Especial de la Corona Forestal de Doñana "
+        "(Decreto 178/2014). El plan solo permite regar en los <em>suelos agrícolas regables</em> (SAR); "
+        "el resto de su ámbito es forestal o agrícola de secano.</p>",
+        '<div class="figures">',
+        f"<div><b>{_ha(s['plan_ha'])} ha</b><span>ámbito del plan</span></div>",
+        f"<div><b>{_ha(s['irrigable_ha'])} ha</b><span>suelo regable (SAR)</span></div>",
+        f"<div><b>{_ha(s['plastic_in_irrigable_ha'])} ha</b><span>plástico dentro del SAR</span></div>",
+        f"<div><b>{_d(s['outside_ha'])} ha</b><span>plástico fuera del SAR, {s['outside_patches']} manchas</span></div>",
+        f"<div><b>{_d(s['outside_declared_ha'])} ha</b><span>de ellas declaradas en SIGPAC</span></div>",
         "</div>",
+        '<p class="note">Lo que hay aquí son <strong>indicios para comprobar, no infracciones</strong>: '
+        'ver «Qué no dice este mapa», en <a href="#metodologia">Cómo se calcula</a>.</p>',
+        "</header><main>",
         f"<p>De las {_d(s['outside_ha'])} ha fuera del SAR, {_d(_adjacent_ha(fc))} están a "
         f"{config.ADJACENT_M} m o menos de él. {_adjacent_reading(_adjacent_ha(fc), s['outside_ha'])}</p>",
         f"<p><small>Fuera del SAR por zona del plan: {zone_txt}. Naranja en el mapa: la parcela SIGPAC "
@@ -240,9 +249,9 @@ def render(site: IrrigationSite) -> str:
         "contradicen el mapa del plan. Rojo: plástico sin nada declarado.</small></p>",
         _why(s, check),
         _map(zones, fc),
-        "<h2>Por campaña</h2><table><tr><th>campaña</th><th>fechas</th><th>despejadas</th>"
+        '<h2>Por campaña</h2><div class="tabla"><table><tr><th>campaña</th><th>fechas</th><th>despejadas</th>'
         "<th>plástico en el ámbito (ha)</th><th>dentro del SAR (ha)</th><th>fuera del SAR (ha)</th>"
-        f"<th>% del plástico</th><th>manchas</th><th>fuera y declarado (ha)</th></tr>{years}</table>",
+        f"<th>% del plástico</th><th>manchas</th><th>fuera y declarado (ha)</th></tr>{years}</table></div>",
         f"<p><small>«Despejadas»: fechas con al menos el {CLEAR_DAY:.0%} del ámbito visible. Las hectáreas "
         "dependen del tiempo que hizo: como se exige plástico en dos fechas, un invierno nublado deja menos "
         "plástico en todo el ámbito, dentro y fuera del SAR (2024 tuvo una sola fecha despejada antes del 20 "
@@ -252,9 +261,9 @@ def render(site: IrrigationSite) -> str:
         "pendiente, coeficiente de regadío); no contiene ni se publica ningún dato del titular. Todas las "
         f"manchas, con su geometría, en <code>data/irrigation/{site.slug}_{s['campaign']}.geojson</code>."
         "</small></p>",
-        "<table><tr><th>ha</th><th>fechas con plástico</th><th>zona del plan</th><th>distancia al SAR</th>"
+        '<div class="tabla"><table><tr><th>ha</th><th>fechas con plástico</th><th>zona del plan</th><th>distancia al SAR</th>'
         "<th>uso SIGPAC</th><th>coef. regadío</th><th>recinto SIGPAC</th><th>ver</th></tr>",
-        "".join(rows), "</table>",
+        "".join(rows), "</table></div>",
         _check_section(check) if check else "",
         '<h2 id="metodologia">Cómo se calcula</h2>',
         "<p>En el Condado de Huelva el regadío no se ve verde: las fincas de fresa y frutos rojos cubren el "
@@ -298,6 +307,14 @@ def render(site: IrrigationSite) -> str:
         f"<li>SIGPAC: FEGA, descarga ATOM por municipio <code>{html.escape(s['sources']['sigpac'])}</code> (CC BY 4.0).</li>",
         f"<li>Sentinel-2 L2A: Earth Search <code>{html.escape(s['sources']['sentinel2'])}</code>.</li>",
         f"<li>Ortofoto: PNOA histórico, IGN, WMS <code>{config.PNOA_WMS}</code> (CC BY 4.0).</li></ul>",
+        "</main>",
+        site_footer("ES", [
+            "Imágenes: Copernicus Sentinel-2 L2A, servidas por Earth Search (Element 84, AWS).",
+            "Zonificación del plan: REDIAM, Junta de Andalucía (CC BY 4.0). Recintos SIGPAC: FEGA (CC BY 4.0).",
+            "Ortofoto: PNOA © Instituto Geográfico Nacional (CC BY 4.0).",
+            'Código con licencia MIT en <a href="https://github.com/Asensio94/vigilancia-humedales">'
+            "github.com/Asensio94/vigilancia-humedales</a>.",
+        ]),
         "</body></html>",
     ])
 

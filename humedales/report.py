@@ -6,6 +6,7 @@ import html
 import io
 import json
 from datetime import date
+from pathlib import Path
 
 import folium
 import matplotlib
@@ -18,7 +19,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from . import config, hydro, masks, metodologia
 from .alerts import Alert
 from .indices import Rasters
-from .sites import Site, site_geometry
+from .sites import SITES, Site, site_geometry
 
 
 def _png_b64(fig) -> str:
@@ -238,22 +239,46 @@ def overview_map(statuses: dict[str, tuple[Site, list[Alert]]]) -> str:
     return m.get_root().render()
 
 
+# Shared look of the sibling projects: copied verbatim from the common style guide and
+# inlined first, so each page stays a single self-contained file. Only the accent and
+# this repo's own rules go after it.
+COMMON_CSS = (Path(__file__).with_name("common.css")).read_text(encoding="utf-8")
+FONTS_URL = ("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700"
+             "&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600"
+             "&family=IBM+Plex+Mono:wght@400;500&display=swap")
+ACCENT_CSS = ":root{--accent:#1d6a96;--accent-dark:#6bb3e0}"
+
+# Alert colours carry meaning (high, medium, none) and match the map polygons, so they
+# stay here instead of in the common sheet.
 CSS = """
-body{font-family:system-ui,sans-serif;max-width:1100px;margin:auto;padding:1rem 1.5rem;color:#222}
-h1{font-size:1.5rem} h2{font-size:1.2rem;margin-top:2.5rem;border-bottom:1px solid #ddd}
-.kpi{display:flex;gap:1rem;flex-wrap:wrap;margin:.5rem 0}
-.kpi div{background:#f4f6f8;border-radius:8px;padding:.5rem .9rem;min-width:130px}
-.kpi b{display:block;font-size:1.25rem}
-.alerta{border-left:5px solid #d62728;background:#fff4f4;padding:.5rem .8rem;margin:.4rem 0}
-.alerta.media{border-color:#ff7f0e;background:#fff8f0}
-.ok{border-left:5px solid #2ca02c;background:#f3fbf3;padding:.5rem .8rem}
-img{max-width:100%} small{color:#666}
-table{border-collapse:collapse;font-size:.85rem} td,th{border:1px solid #ddd;padding:.25rem .5rem}
-h3{font-size:1.02rem;margin:1.6rem 0 .3rem}
-.indice{font-size:.85rem;color:#555;line-height:1.7}
-.nav{margin:-.6rem 0 1rem} .nav a{color:#1a6}
-.glosario dt{font-weight:600;margin-top:.7rem} .glosario dd{margin:.15rem 0 0 1.2rem;color:#444}
-#metodologia ~ p,#metodologia ~ ul li,.glosario dd{max-width:75ch;line-height:1.5}
+:root{--alta:#d62728;--media:#ff7f0e;--sin-alerta:#2ca02c}
+.paises{margin:0;font-size:14px;color:var(--muted)}
+.paises a[aria-current]{color:var(--ink);text-decoration:none}
+.site-header .note{margin:0;max-width:72ch}
+main{max-width:1440px;margin:0 auto;padding:0 16px}
+main h2{margin:2.5rem 0 .6rem;padding-bottom:4px;border-bottom:1px solid var(--line);
+  font:700 26px/1.1 var(--font-title);text-transform:uppercase;letter-spacing:.03em}
+main h2 small{font:400 14px/1.4 var(--font-text);text-transform:none;letter-spacing:0;color:var(--muted)}
+main img{display:block;height:auto;border:1px solid var(--line)}
+small{color:var(--muted)}
+.tabla{overflow-x:auto;max-width:100%}
+main table{border-collapse:collapse;font-size:14.5px}
+main td,main th{border:1px solid var(--line);padding:.3rem .55rem;text-align:left}
+main th{font:600 14px/1.3 var(--font-title);text-transform:uppercase;letter-spacing:.05em}
+.kpi{display:flex;gap:.6rem;flex-wrap:wrap;margin:.5rem 0}
+.kpi div{background:var(--paper);border:1px solid var(--line);padding:.5rem .9rem;min-width:130px}
+.kpi small{font:600 12.5px/1.2 var(--font-title);text-transform:uppercase;letter-spacing:.06em}
+.kpi b{display:block;font:500 20px/1.3 var(--font-data);font-variant-numeric:tabular-nums}
+.alerta,.ok{padding:.5rem .8rem;margin:.4rem 0;border-left:5px solid var(--alta);
+  background:color-mix(in srgb,var(--alta) 10%,var(--paper))}
+.alerta.media{border-color:var(--media);background:color-mix(in srgb,var(--media) 10%,var(--paper))}
+.ok{border-color:var(--sin-alerta);background:color-mix(in srgb,var(--sin-alerta) 10%,var(--paper))}
+.mapa{width:100%;height:520px;border:1px solid var(--line);display:block}
+.indice{font-size:14.5px;color:var(--muted);line-height:1.7}
+.pasos li{margin:.35rem 0}
+.glosario dt{font-weight:600;margin-top:.7rem}
+.glosario dd{margin:.15rem 0 0 1.2rem;color:var(--muted);max-width:72ch}
+@media (max-width:640px){.kpi div{min-width:0;flex:1 1 140px}.mapa{height:420px}}
 """
 
 
@@ -263,29 +288,110 @@ h3{font-size:1.02rem;margin:1.6rem 0 .3rem}
 PAISES = {"ES": ("España", "index.html"), "FR": ("Francia", "france.html")}
 
 
+# Common footer of the sibling projects (style guide, section 3). This project's own
+# entry is marked with aria-current.
+SIBLINGS = [
+    ("https://asensio94.github.io/observatorio-alegaciones/", "Observatorio de alegaciones"),
+    ("https://asensio94.github.io/vigia-incendios/", "Vigía de incendios"),
+    ("https://asensio94.github.io/centinela-natura/", "Centinela Natura"),
+    ("https://asensio94.github.io/vigilancia-humedales/", "Vigilancia de humedales"),
+    ("https://asensio94.github.io/sub-nocte/", "Sub Nocte"),
+    ("https://asensio94.github.io/riesgo-tendidos-aves/", "Riesgo de tendidos para aves"),
+    ("https://asensio94.github.io/grafo-promotores/", "Grafo de promotores"),
+    ("https://asensio94.github.io/cartera-cotizadas/", "Cartera de las cotizadas"),
+    ("https://asensio94.github.io/cuaderno-campo/", "Cuaderno de campo"),
+]
+OWN_SIBLING = "Vigilancia de humedales"
+
+
+def site_footer(pais: str, fuentes: list[str] | None = None) -> str:
+    """Sources and licences of this project, then the shared principle and siblings. A page
+    with sources of its own (the irrigation one) passes them instead of the wetland ones."""
+    if fuentes is not None:
+        return _footer(fuentes)
+    fuentes = [
+        "Imágenes: Copernicus Sentinel-2 L2A, servidas por Earth Search (Element 84, AWS).",
+        "Contornos de los humedales: red Natura 2000 (Agencia Europea de Medio Ambiente).",
+    ]
+    if pais == "FR":
+        fuentes.append("Línea de costa para recortar el mar: © colaboradores de "
+                       "OpenStreetMap (ODbL).")
+    if any(s.country == pais and hydro.has_context(s.slug) for s in SITES.values()):
+        fuentes.append(f"Calado y lluvia medidos en el suelo: {html.escape(hydro.SOURCE)}.")
+    fuentes.append('Código con licencia MIT en '
+                   '<a href="https://github.com/Asensio94/vigilancia-humedales">'
+                   'github.com/Asensio94/vigilancia-humedales</a>.')
+    return _footer(fuentes)
+
+
+def _footer(fuentes: list[str]) -> str:
+    items = "\n".join(
+        f'    <li aria-current="page"><a href="{url}">{name}</a></li>' if name == OWN_SIBLING
+        else f'    <li><a href="{url}">{name}</a></li>'
+        for url, name in SIBLINGS)
+    return (
+        '<footer class="site-footer">\n'
+        '  <p class="principle">Datos públicos, reglas a la vista y cada cifra enlazada a su '
+        'fuente. Indicios, no veredictos.</p>\n'
+        + "".join(f"  <p>{f}</p>\n" for f in fuentes)
+        + '  <nav aria-label="Proyectos hermanos"><ul class="siblings">\n'
+        + items
+        + "\n  </ul></nav>\n</footer>")
+
+
+def header_figures(results: dict[str, dict]) -> str:
+    """Key figures of the page: wetlands, active alerts, last valid date, valid dates."""
+    n_alertas = sum(len(r["alerts"]) for r in results.values())
+    con_alerta = sum(1 for r in results.values() if r["alerts"])
+    fechas = [str(r["latest"]["date"]) for r in results.values() if r["latest"] is not None]
+    n_ok = sum(int((r["series"]["quality"] == "ok").sum()) for r in results.values()
+               if r["series"] is not None and not r["series"].empty)
+    cifras = [
+        (str(len(results)), "humedales"),
+        (str(n_alertas), "alertas activas"),
+        (str(con_alerta), "humedales con alerta"),
+        (max(fechas) if fechas else "–", "última fecha válida"),
+        (_ha(n_ok), "fechas válidas en la serie"),
+    ]
+    return ('<div class="figures">'
+            + "".join(f"<div><b>{v}</b><span>{k}</span></div>" for v, k in cifras)
+            + "</div>")
+
+
 def render(results: dict[str, dict], run_date: date, pais: str = "ES") -> str:
     """results[slug] = {site, series, alerts, latest, chart_b64, image_b64}"""
     nombre_pais = PAISES[pais][0]
-    otros = "".join(
-        f' · <a href="{fichero}">{nombre}</a>'
-        for codigo, (nombre, fichero) in PAISES.items() if codigo != pais)
+    paises = " · ".join(
+        f'<a aria-current="page">{nombre}</a>' if codigo == pais
+        else f'<a href="{fichero}">{nombre}</a>'
+        for codigo, (nombre, fichero) in PAISES.items())
     if pais == "ES":
-        otros += ' · <a href="regadio.html">Regadío fuera del suelo regable en Doñana</a>'
+        paises += ' · <a href="regadio.html">Regadío fuera del suelo regable en Doñana</a>'
     parts = [
         "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\">",
+        '<meta name="viewport" content="width=device-width, initial-scale=1">',
         f"<title>Vigilancia de humedales · {nombre_pais} · {run_date.isoformat()}</title>",
-        f"<style>{CSS}</style></head><body>",
-        f"<h1>Vigilancia satelital de humedales protegidos · {nombre_pais}</h1>",
-        f'<p class="nav"><small>Ver también{otros}</small></p>' if otros else "",
-        "<p><small>Sentinel-2 L2A (Earth Search / AWS), límites Natura 2000 (EEA). Informe "
-        f"generado el {run_date.isoformat()}. Superficie de agua, turbidez y clorofila medidas por "
-        "satélite cada pocos días; las alertas comparan cada humedal consigo mismo en la misma "
-        "época del año. Todo lo demás —qué mide cada índice, qué fechas se descartan, cómo se "
-        "decide una alerta y qué significa cada sigla— está en la "
-        "<a href=\"#metodologia\">metodología</a>, al final.</small></p>",
+        '<link rel="preconnect" href="https://fonts.googleapis.com">',
+        '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
+        f'<link rel="stylesheet" href="{html.escape(FONTS_URL)}">',
+        f"<style>\n{COMMON_CSS}\n{ACCENT_CSS}\n{CSS}</style></head><body>",
+        '<header class="site-header">',
+        "<h1>Vigilancia de <span>humedales</span></h1>",
+        f'<nav class="paises label" aria-label="Países">{paises}</nav>',
+        f'<p class="lede">Mide cada pocos días con Sentinel-2 la superficie de agua, la turbidez y '
+        f"la clorofila de {len(results)} humedales protegidos de {nombre_pais} y avisa cuando uno "
+        "se sale de lo que suele dar en la misma época del año.</p>",
+        header_figures(results),
+        f'<p class="note">Informe generado el {run_date.isoformat()}. Las alertas comparan cada '
+        "humedal consigo mismo en la misma época del año. Todo lo demás —qué mide cada índice, qué "
+        "fechas se descartan, cómo se decide una alerta y qué significa cada sigla— está en "
+        "<a href=\"#metodologia\">Cómo se calcula</a>, al final.</p>",
+        "</header>",
+        "<main>",
     ]
 
-    parts.append("<h2>Resumen</h2><table><tr><th>Humedal</th><th>Última fecha válida</th>"
+    parts.append('<h2>Resumen</h2><div class="tabla"><table><tr>'
+                 "<th>Humedal</th><th>Última fecha válida</th>"
                  "<th>Agua (ha)</th><th>NDCI</th><th>NDTI</th><th>Alertas</th></tr>")
     for slug, res in results.items():
         site, latest, alerts = res["site"], res["latest"], res["alerts"]
@@ -298,7 +404,7 @@ def render(results: dict[str, dict], run_date: date, pais: str = "ES") -> str:
             f"<td>{_ha(latest['water_ha'])}</td><td>{_fmt(latest['ndci_mean'])}</td>"
             f"<td>{_fmt(latest['ndti_mean'])}</td>"
             f"<td>{', '.join(_kind(a.kind) for a in alerts) or 'ninguna'}</td></tr>")
-    parts.append("</table>")
+    parts.append("</table></div>")
 
     for slug, res in results.items():
         site, df, alerts, latest = res["site"], res["series"], res["alerts"], res["latest"]
@@ -328,7 +434,8 @@ def render(results: dict[str, dict], run_date: date, pais: str = "ES") -> str:
         else:
             parts.append('<div class="ok">Sin alertas: valores dentro del rango de referencia.</div>')
         if res.get("chart_b64"):
-            parts.append(f'<p><img src="data:image/png;base64,{res["chart_b64"]}"></p>')
+            parts.append(f'<p><img src="data:image/png;base64,{res["chart_b64"]}" '
+                         f'alt="Series de agua, NDCI y NDTI de {html.escape(site.name)}"></p>')
             notes = []
             m = masks.load(slug)
             if m:
@@ -345,14 +452,18 @@ def render(results: dict[str, dict], run_date: date, pais: str = "ES") -> str:
             if notes:
                 parts.append(f"<p><small>{' '.join(notes)}</small></p>")
         if res.get("image_b64"):
-            parts.append(f'<p><img src="data:image/jpeg;base64,{res["image_b64"]}"></p>')
+            parts.append(f'<p><img src="data:image/jpeg;base64,{res["image_b64"]}" '
+                         f'alt="Última imagen de {html.escape(site.name)}: color natural y '
+                         'agua detectada"></p>')
 
     parts.append("<h2>Mapa</h2>")
     statuses = {slug: (r["site"], r["alerts"]) for slug, r in results.items()}
     map_html = overview_map(statuses)
-    parts.append(f'<iframe srcdoc="{html.escape(map_html)}" '
-                 'style="width:100%;height:520px;border:0"></iframe>')
+    parts.append(f'<iframe class="mapa" title="Mapa de los humedales" '
+                 f'srcdoc="{html.escape(map_html)}"></iframe>')
+    parts.append("</main>")
     parts.append(metodologia.section(results, pais))
+    parts.append(site_footer(pais))
     parts.append("</body></html>")
     return "\n".join(parts)
 

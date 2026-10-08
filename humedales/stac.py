@@ -53,6 +53,16 @@ def band_scale_offset(item: Item, band: str) -> tuple[float, float]:
     ``raster:bands`` siga declarando offset=-0.1, NO hay que restarlo otra vez
     (se comprobó empíricamente: hacerlo deja la mitad del humedal con
     reflectancia negativa). Para escenas anteriores a la 04.00 el offset es 0.
+
+    El flag solo es fiable cuando dice True. Muchas escenas marcadas False
+    también llegan con el offset ya quitado: en una parcela agrícola fija junto
+    a Moguer (2025, píxeles SCL 4/5) el azul mediano es 288 y 280 DN en escenas
+    True y 208 y 336 DN en escenas False, cuando con el offset dentro rondaría
+    los 1.300. Restar 0,1 a esas escenas lleva el azul al mínimo de 1e-4 y la
+    fecha se pierde como espectro_anomalo, nublado o sin_datos. Por eso esta
+    función devuelve el offset que declaran los metadatos e
+    ``indices.offset_already_applied`` decide con los DN cargados si de verdad
+    hay que aplicarlo.
     """
     asset = item.assets[band]
     rb = asset.extra_fields.get("raster:bands") or [{}]

@@ -13,55 +13,58 @@ con la serie histórica del mismo humedal en la misma época del año. Son doce,
 alertas en formato legible por programa en
 [`alertas.json`](https://asensio94.github.io/vigilancia-humedales/alertas.json), que lleva las de
 los dos países (o `alertas_es.json` y `alertas_fr.json` por separado). El propio informe
-lleva al final una [sección de metodología](https://asensio94.github.io/vigilancia-humedales/#metodologia)
+lleva al final una sección [«Cómo se calcula»](https://asensio94.github.io/vigilancia-humedales/#metodologia)
 en lenguaje llano, con un glosario de siglas: se genera desde `metodologia.py` leyendo los umbrales
 reales de `config` y `alerts`, así que no puede quedarse describiendo una versión anterior. Cada
 página lleva la metodología de su país, con sus propios ejemplos medidos. Lo que sigue aquí es la
 trastienda técnica.
 
-## Estado
+## Cómo funciona
 
-Prototipo v0.1 (3 de septiembre de 2026). Funciona de extremo a extremo sin ninguna clave de acceso, y
-los **seis humedales tienen ya el histórico completo** de julio de 2017 a septiembre de 2026, cargado
-sin una sola fecha perdida por error de red:
+1. `sites.py`: catálogo de humedales con sus códigos Natura 2000; descarga y cachea la geometría.
+2. `stac.py`: busca escenas por bbox y fecha, agrupa por día solar, lee escala y offset declarados por escena.
+3. `indices.py`: carga con `odc-stac` las bandas B02, B03, B04, B05, B08, B11 y SCL recortadas al
+   humedal, proyectadas al sistema en metros de su país a 20 m (40 m en Doñana y la Camarga, ver
+   *Resolución por humedal*), y calcula por fecha:
+   - cobertura y fracción nubosa dentro del humedal (clases SCL más azul > 0.22),
+   - **neblina**: mediana de reflectancia azul de los píxeles válidos > 0.12 descarta la fecha
+     (la SCL no detecta calimas finas que inflan el agua detectada x3),
+   - **umbral de agua adaptativo**: el corte de MNDWI se calcula en cada fecha con el método de Otsu
+     sobre el histograma del propio humedal, en vez de fijarlo en cero (ver *El umbral fijo era el
+     problema*),
+   - **agua libre**: píxeles válidos con MNDWI por encima de ese umbral y NDVI < 0.15,
+   - **vegetación inundada**: MNDWI por encima del umbral y NDVI >= 0.15 (masiega, carrizo, arrozal),
+   - turbidez: NDTI = (B04 - B03)/(B04 + B03) medio sobre el agua libre,
+   - clorofila: NDCI = (B05 - B04)/(B05 + B04) medio, percentil 90 y fracción con NDCI > 0.20,
+   - también NDWI > 0 y la clase agua de SCL, como contraste,
+   - **forma del espectro sobre el agua**: cociente infrarrojo/verde y azul mediano sobre una semilla
+     de agua, para detectar correcciones atmosféricas fallidas (ver *Cuando la atmósfera se corrige mal*),
+   - calidad: `ok`, `nublado` (> 20 % nubes), `neblina`, `espectro_anomalo`, `incoherente` (el agua por
+     índice contradice la clase agua de ESA), `parcial` (< 95 % cubierto), `sin_datos`.
+4. `store.py`: series CSV por humedal, upsert por fecha.
+5. `alerts.py`: el **valor actual** es la mediana de las observaciones `ok` de los últimos 20 días
+   (mínimo 2), no la última pasada, para amortiguar el parpadeo entre órbitas. Reglas:
+   - **desecación** (alta): agua libre por debajo del percentil 10 de las observaciones de años anteriores
+     en ±30 días del mismo día del año (mínimo 5 observaciones de referencia);
+   - **descenso brusco** (media): agua libre < 70 % de la mediana de los 45 días previos a la ventana
+     actual, **y** además una caída peor que el 90 % de las caídas registradas en esa misma época del
+     año (ver *Una laguna que se seca cada verano no es noticia*);
+   - **eutrofización**: el **pico** de NDCI de la ventana actual por encima del percentil 90 de los
+     picos de esa misma época del año en años anteriores, más un margen de 0,02. La gravedad la gradúa
+     el umbral de literatura (0,20): alta si además lo supera, media si no (ver *El umbral de clorofila
+     de la literatura no sirve aquí*);
+   - **turbidez** (media): NDTI por encima del percentil 90 histórico estacional.
+   Las lagunas de agua permanente (Mar Menor, l'Albufera) no generan alertas de superficie.
+6. `masks.py`: mide el **área inundable** de cada humedal acumulando el agua detectada en fechas
+   limpias de los meses húmedos (diciembre a abril), una por año y mes. Es el denominador con sentido
+   hidrológico de la métrica "fracción inundada": el polígono Natura 2000 es administrativo.
+7. `hydro.py`: contexto hidrológico medido en el suelo (calado de la marisma y lluvia) desde la API
+   de la ICTS-Doñana, para contrastar las alertas con una fuente que no es el satélite.
+8. `report.py`: informe HTML autocontenido (imágenes embebidas) con mapa folium; añade un cuarto panel
+   con el calado y la lluvia en los humedales que tienen estaciones de campo.
+9. `backfill.py`: carga masiva paralela y reanudable del histórico.
 
-| Humedal | fechas | válidas | agua libre 2017 → 2026 (mediana anual, ha) |
-|---|---|---|---|
-| Tablas de Daimiel | 475 | 259 | 236 → 248, con el fondo en 26 (2023) |
-| Mar Menor | 553 | 357 | 13.336 → 13.184, estable |
-| l'Albufera de València | 493 | 350 | 9.129 → 9.072, estable |
-| Fuente de Piedra | 960 | 420 | 200 → 1.014, muy variable |
-| Gallocanta | 889 | 494 | 441 → 811, con el fondo en 237 (2025) |
-| Doñana | 598 | 341 | 7.528 → 11.159, creciendo desde 2024 |
-
-Los dos humedales pequeños salen con casi el doble de fechas porque caen en el solape de varias
-órbitas. Las cifras de l'Albufera incluyen el arrozal inundado del sitio Natura 2000, no solo la
-laguna, que son unas 2.300 ha: para esa laguna la métrica que importa es la del área inundable.
-
-La serie de Tablas de Daimiel reproduce la sequía documentada de La Mancha y su recuperación; mediana
-anual de agua libre en hectáreas:
-
-| 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 |
-|---|---|---|---|---|---|---|---|---|---|
-| 236 | 241 | 181 | 88 | 60 | 50 | 26 | 85 | 159 | 248 |
-
-2017 arranca en julio y 2026 acaba en septiembre, así que sus medianas no cubren el año entero; con la
-misma ventana de meses en todos los años (enero a septiembre) la serie es 258, 249, 190, 90, 65, 53,
-52, 85, 170, 248 ha, es decir la misma forma pero con un 2023 menos extremo, porque lo peor de aquella
-sequía fue el otoño. Comparar medianas anuales entre años incompletos es una trampa fácil (ver
-*Limitaciones*); las alertas no la pisan porque siempre comparan contra la misma época del año.
-
-El fondo de la sequía en 2023 y la recuperación de 2025-2026 coinciden con el calado medido en el
-suelo en la marisma de Doñana (máximos anuales de 0,18 m en 2023 y 1,10 m en 2026), que es una fuente
-independiente del satélite: ver *Contexto hidrológico*.
-
-Y hay dos controles de que las hectáreas absolutas significan algo, no solo sus variaciones. El
-primero es el Mar Menor, cuya lámina permanente no debería moverse: sale entre 12.950 y 13.340 ha de
-mediana anual en nueve años, frente a las 13.500 ha que se citan habitualmente para la laguna. El
-segundo es la correlación de 0,94 entre el área inundada de Doñana y el calado medido en el suelo en
-la marisma, sobre 168 fechas (ver *Contexto hidrológico*).
-
-## Los humedales franceses
+### Los humedales franceses
 
 El método no tenía nada específico de España salvo el sistema de referencia, así que Francia entró
 casi entera con el mismo código. Lo que sí hubo que resolver:
@@ -108,315 +111,6 @@ muestreo del área inundable.
 ríos: 38 piezómetros dentro de la Camarga, algunos con serie desde 1983, y 19 estaciones de caudal
 junto a la Brenne. Es justo lo que en España solo existe en Doñana.
 
-## Uso
-
-```bash
-.venv/Scripts/python.exe -m humedales.cli sites
-.venv/Scripts/python.exe -m humedales.cli run --site tablas-daimiel --since 2026-06-01
-.venv/Scripts/python.exe -m humedales.cli run                 # todos, solo fechas nuevas
-.venv/Scripts/python.exe -m humedales.cli report              # informe desde las series guardadas
-.venv/Scripts/python.exe -m humedales.cli backfill            # histórico completo desde 2017
-.venv/Scripts/python.exe -m humedales.cli mask                # mide el área inundable de cada humedal
-.venv/Scripts/python.exe -m humedales.cli irrigation --year 2025  # regadío fuera del suelo regable
-```
-
-Genera `output/informe_<fecha>.html` (resumen, alertas, gráficas de serie, imagen de la última fecha,
-mapa) y `output/alertas_<fecha>.json`. Las series viven en `data/series/<humedal>.csv`, una fila por fecha,
-y se amplían de forma incremental: cada ejecución solo procesa las fechas que faltan.
-
-### Publicar el informe
-
-Cada día a las 06:20 UTC, [un workflow de GitHub Actions](.github/workflows/vigilancia.yml)
-descarga las fechas nuevas, recalcula las alertas, guarda las series en `master` y publica el
-informe. Las alertas del día quedan en el resumen de la ejecución, que es lo que se ve al abrir el
-correo de Actions. También se puede lanzar a mano desde la pestaña *Actions*.
-
-A las 06:20 y no a la hora del paso del satélite porque las escenas tardan varias horas en
-aparecer como L2A en el catálogo: pedirlas antes es pedirlas antes de que existan.
-
-Una fecha nueva de satélite llega cada varios días, y nunca el mismo día en los seis humedales, así
-que un informe diario solo podría dibujar uno de los seis mapas. La última imagen de cada humedal se
-guarda en `data/img/` y el informe la reutiliza los días sin escena nueva, con la fecha impresa
-dentro de la propia imagen para que no engañe. Entre ejecuciones viaja en la caché de Actions, y en
-el repositorio hay una copia como semilla para cuando la caché no está.
-
-Para publicar desde este equipo, sin esperar al cron:
-
-```powershell
-.\publicar.ps1            # sube el informe más reciente a GitHub Pages
-```
-
-Hay **una página por país**: España se queda en `index.html`, que es la URL que ya estaba publicada,
-y Francia va en `france.html`, con un enlace de una a otra. No es solo por peso: la hidrología, las
-fuentes de contexto y el lector de cada uno son distintos, y una tabla resumen que mezcla Doñana con
-la Camarga no se lee mejor por ser más larga.
-
-El informe es un solo fichero HTML autocontenido —las gráficas y las imágenes viajan incrustadas en
-base64—, así que publicarlo es copiarlo: no hay plantillas, ni assets, ni build. Eso cuesta unos 2,5 MB
-por informe, y por eso la rama `gh-pages` es huérfana y guarda **un solo commit**, que el script
-reemplaza con `--amend` y un push forzado. Es deliberado: acumular un histórico de informes de 2 MB
-en el repositorio no aporta nada, porque las series de las que sale cada informe ya están versionadas
-en `data/series/`.
-
-### Backfill del histórico
-
-`backfill` construye la referencia histórica desde julio de 2017, que es cuando empieza Sentinel-2 L2A
-en el catálogo. Reparte las fechas entre varios procesos (la descarga desde S3 es el cuello de botella,
-no el cálculo), guarda cada doce fechas y omite las que ya están en el CSV, así que es **reanudable**:
-si se interrumpe, se repite el mismo comando y continúa donde estaba.
-
-```bash
-# Doñana aparte, con menos procesos: sus mosaicos son de 3.000 x 2.800 px por banda
-.venv/Scripts/python.exe -m humedales.cli backfill -s donana --workers 4
-.venv/Scripts/python.exe -m humedales.cli backfill -s tablas-daimiel -s mar-menor --workers 5
-```
-
-Son unas 475-600 fechas por humedal en nueve años, unos 3 s por fecha en los humedales pequeños con
-cinco procesos y unos 25 s en Doñana, que necesita 4,5 escenas por fecha. Conviene lanzar **un humedal
-a la vez**: cada proceso abre ya varias descargas en paralelo y con dos backfills simultáneos se
-saturaba la red (ver más abajo).
-
-Las fechas que fallan por red se reintentan tres veces dentro del proceso hijo y, si aun así fallan,
-se registran con la marca `FALLO` y quedan sin guardar: como el backfill es reanudable, basta repetir
-el mismo comando para volver a intentarlas.
-
-## Regadío fuera del suelo regable (Doñana)
-
-Segundo producto del repositorio, con otra pregunta: no cuánta agua hay en el humedal, sino cuánta
-tierra se riega a su alrededor donde el plan no lo permite. El Plan Especial de la Corona Forestal
-de Doñana (2014) delimitó el **suelo agrícola regable** (SAR): unas 9.500 ha dentro de un ámbito
-de 64.400 ha en el Condado de Huelva. Fuera del SAR el plan no admite regadío. El acuífero que
-alimenta la marisma es el mismo del que beben esas fincas.
-
-La página está en
-[/regadio.html](https://asensio94.github.io/vigilancia-humedales/regadio.html) y la regenera una
-vez por campaña `.github/workflows/regadio.yml` (15 de abril, o a mano). Cada campaña deja
-`data/irrigation/donana_<año>.geojson` (las manchas) y `.json` (el resumen y el embudo).
-
-**La firma que se busca es el plástico.** El fresón y los frutos rojos de Huelva se cultivan bajo
-macrotúnel de enero a marzo, y el plástico es fácil de ver desde Sentinel-2 y difícil de confundir:
-un regadío de cereal o de cítricos no deja esa huella, así que esto mide el regadío de frutos rojos,
-no todo el regadío. Por observación, un píxel es plástico si cumple a la vez:
-
-- RPGI = 100·azul / (1 − media(azul, verde, NIR)) ≥ 10 (índice de invernadero de Yang et al.)
-- PMLI = (SWIR1 − rojo) / (SWIR1 + rojo) ≤ 0,10 (Lu et al.; el plástico no tiene el SWIR alto del suelo seco)
-- azul / rojo ≥ 0,75, que quita la arena amarilla del Abalario, el falso positivo más frecuente
-- azul < 0,22 y SCL de suelo, vegetación o agua, para dejar fuera nubes y bruma
-
-Después, en rejilla de 10 m (EPSG:25830): plástico en **al menos 2 fechas** válidas de la ventana;
-fuera del SAR y a más de 20 m de su borde (dos píxeles, para que el error de georreferencia y de la
-cartografía no cuente como infracción); en un recinto SIGPAC de uso agrario (se quitan caminos,
-edificaciones, improductivos, agua y urbano), y en manchas de al menos 0,5 ha. Cada mancha lleva su
-zona del plan, su distancia al SAR, el recinto SIGPAC mayoritario con su uso y coeficiente de
-regadío declarados, y un enlace a la consulta pública del visor SIGPAC. **Nunca se guarda ni se
-publica quién es el titular**: SIGPAC abierto no lo trae, y no se buscará en otras fuentes.
-
-Cuatro campañas calculadas:
-
-| campaña | fechas (despejadas) | plástico en el ámbito | dentro del SAR | fuera del SAR | % del plástico | manchas | fuera y declarado en SIGPAC |
-|---|---|---|---|---|---|---|---|
-| 2023 | 11 (8) | 4.560 ha | 3.953 ha | 250,8 ha | 5,5 % | 144 | 237,6 ha |
-| 2024 | 9 (6) | 2.731 ha | 2.311 ha | 135,5 ha | 5,0 % | 103 | 130,1 ha |
-| 2025 | 14 (6) | 5.235 ha | 4.435 ha | 307,0 ha | 5,9 % | 179 | 291,2 ha |
-| 2026 | 13 (9) | 4.533 ha | 3.968 ha | 176,6 ha | 3,9 % | 108 | 168,3 ha |
-
-Las hectáreas siguen al tiempo que hizo más que a las fincas: como se exige plástico en dos fechas,
-un invierno nublado rebaja todo el ámbito a la vez (2024 tuvo una sola fecha despejada antes del 20
-de febrero y se queda en la mitad de plástico, dentro y fuera del SAR). Lo comparable entre años es
-la proporción: **entre el 4 y el 6 % del plástico del ámbito está fuera del suelo regable**, y casi
-todo (el 95 % de las hectáreas, todos los años) está en recintos que SIGPAC declara como invernadero o regadío.
-Entre el 84 y el 91 % de las hectáreas están a 50 m o menos del SAR, la mayoría a 11-20 m: son fincas
-que siguen más allá de la línea, no claros abiertos en mitad del pinar. Por zona del plan se reparte
-casi a medias entre la A (forestal) y la C (agrícola no regable).
-
-**Comprobado con la ortofoto.** Las 144 manchas de 2023 se miraron sobre el PNOA del IGN (vuelo
-de junio de 2022, 25 cm) y se clasificaron a ojo en `data/irrigation/validation/donana_2023_PNOA2022.csv`:
-
-| etiqueta | manchas | ha |
-|---|---|---|
-| invernadero (túnel cubierto o solo los arcos) | 115 | 198,0 |
-| cultivo sin estructura visible | 27 | 46,5 |
-| no agrícola | 2 | 6,3 |
-
-El 80 % de las manchas (79 % de las hectáreas) muestra túneles y el 99 % es terreno agrícola. La
-cifra de túneles es un mínimo: el vuelo es de verano, cuando muchos túneles ya están desmontados. Los
-dos falsos positivos son franjas de arena en el pinar, probablemente cortafuegos sobre recintos SIGPAC
-forestales, que el filtro azul/rojo no llega a separar del plástico; si se repiten en otras campañas,
-habrá que filtrarlos por forma (largos y estrechos). **La clasificación la hizo Claude (un modelo de
-IA) sobre las mismas imágenes y está pendiente de revisión humana**. La página enseña cada mancha con
-la ortofoto pedida en directo al WMS del IGN y su contorno encima, para que se pueda discutir una a
-una. Para rehacerla sobre otra campaña, `validation.contact_sheets` genera hojas numeradas en
-`data/cache/`, y el CSV se rellena con `validation.write_labels`.
-
-**Qué no dice esto.** Es un indicio, no una infracción. La regularización de 2014 tuvo excepciones
-(art. 26.6 del plan) que no están en la capa, el SAR se ha revisado y puede volver a hacerlo, y que
-SIGPAC declare un recinto como regadío dice qué cobra de la PAC, no qué agua tiene concedida. Las
-concesiones de la Confederación no son públicas como capa; si algún día lo son, este cruce es el
-que hay que rehacer. Tampoco se compara con el informe de WWF (2021), que contó 1.653 ha fuera del
-SAR por fotointerpretación y con la delimitación anterior: otro método y otro suelo de referencia.
-
-**SIGPAC caduca.** FEGA solo publica la campaña en curso y la anterior, así que las campañas viejas
-se cruzan con el SIGPAC más cercano que siga en línea (lo dice el resumen, `sigpac_campaign`) y la
-caché del workflow es la única copia de los ficheros que FEGA retira.
-
-**Un error del catálogo que también afecta a la serie diaria.** Earth Search marca algunas escenas
-con `earthsearch:boa_offset_applied = false` cuando el desplazamiento de −0,1 de la línea base 04.00
-ya está aplicado: sus valores de azul en bruto rondan 200-340 en vez de 1.200-1.340. Si se resta
-otra vez, el azul se va a cero y el plástico desaparece. Aquí no se fía de la etiqueta:
-`offset_already_applied` mira el percentil 1 de los datos. La serie de agua (`stac.band_scale_offset`)
-todavía se fía de la etiqueta; afecta a 141 de 7.846 fechas guardadas, todas ya marcadas como no
-válidas por otros controles, y queda pendiente de corregir.
-
-**Siguientes sitios.** Tablas de Daimiel (pozos del acuífero 23: aquí la firma sería verdor de
-regadío en verano, NDVI alto en julio-agosto en secano declarado) y Mar Menor (zonas de la Ley
-3/2020 de la CARM y regadío de la CHS, cuyas capas traen un campo `TITULARES` que no se descargará).
-
-## Fuentes
-
-| Fuente | Uso | Acceso |
-|---|---|---|
-| Earth Search v1 (Element 84, AWS) `sentinel-2-l2a` | catálogo STAC y COG de cada banda; histórico desde 2017 | público, sin clave |
-| EEA Natura 2000 (ArcGIS REST) | polígono de cada humedal por código de sitio | público |
-| OpenStreetMap Overpass | trazos `natural=coastline` para recortar el mar de los humedales costeros | público, exige `User-Agent` |
-| ICTS-Doñana Hidromet (`datos-automaticos.icts-donana.es`) | calado diario de la marisma y lluvia, medidos en el suelo | público, CC BY 4.0, 100 peticiones/hora por IP |
-| REDIAM, WFS `REDIAM_zonificacion_plan_regadios_corona_forestal_donana` (capa `Zona_B_C_regable`) | zonificación del Plan Especial de la Corona Forestal (Decreto 178/2014): suelo agrícola regable (`SAR_1025`) y zonas A, B y C | público, sin clave; copia versionada en `data/legal/` |
-| FEGA, descarga ATOM de recintos SIGPAC | uso declarado (`uso_sigpac`) y coeficiente de regadío de cada recinto, por municipio y campaña | público; solo las dos últimas campañas en línea. No contiene titulares |
-| IGN, PNOA histórico (WMS `https://www.ign.es/wms/pnoa-historico`, capas `PNOA2022`, `PNOA2019`) | ortofoto de 25 cm para comprobar las manchas de regadío; la página la enlaza, no la copia | público, CC BY 4.0. Pedir PNG: en JPEG con `Accept-Encoding: gzip` responde 500 |
-
-**Los contornos van versionados, y eso es deliberado.** `data/sites/` guarda el polígono de cada
-humedal y la línea de costa con la que se recorta, y está en el repositorio en vez de ignorado.
-El motivo no es ahorrar dos peticiones al día: es que una serie de superficie de agua solo se
-puede comparar consigo misma si el contorno sobre el que se mide no se mueve. Si la EEA reajusta
-un polígono o alguien redibuja una playa en OSM, la lámina medida cambia sin que haya pasado nada
-en el humedal, y el salto entra en el histórico como si fuera real. Fijados en el repositorio, esa
-actualización es un cambio explícito (`site_geometry(..., refresh=True)`, y a rehacer la máscara)
-en vez de un accidente silencioso. De paso, el trabajo diario no depende de que Overpass conteste.
-
-Alternativas comprobadas: Microsoft Planetary Computer sirve el mismo producto (STAC público); Copernicus
-Data Space exige registro. El WFS de Ramsar (`rsis.ramsar.org/geoserver`) tiene un esquema no estándar
-y MITECO solo expone WMS para el Inventario de Zonas Húmedas, por eso los límites salen de Natura 2000.
-
-**Ojo con el offset radiométrico.** Desde la baseline 04.00 (enero 2022) ESA añade -1000 DN a los
-productos L2A. Earth Search ya lo aplica dentro de sus COG y lo indica con la propiedad
-`earthsearch:boa_offset_applied`, aunque `raster:bands` siga declarando `offset: -0.1`. Restarlo otra
-vez deja la mitad del humedal con reflectancia negativa y arruina todos los índices (fue el primer
-error del prototipo).
-
-## Pipeline
-
-1. `sites.py`: catálogo de humedales con sus códigos Natura 2000; descarga y cachea la geometría.
-2. `stac.py`: busca escenas por bbox y fecha, agrupa por día solar, decide escala y offset por escena.
-3. `indices.py`: carga con `odc-stac` las bandas B02, B03, B04, B05, B08, B11 y SCL recortadas al
-   humedal, proyectadas al sistema en metros de su país a 20 m (40 m en Doñana y la Camarga, ver
-   *Resolución por humedal*), y calcula por fecha:
-   - cobertura y fracción nubosa dentro del humedal (clases SCL más azul > 0.22),
-   - **neblina**: mediana de reflectancia azul de los píxeles válidos > 0.12 descarta la fecha
-     (la SCL no detecta calimas finas que inflan el agua detectada x3),
-   - **umbral de agua adaptativo**: el corte de MNDWI se calcula en cada fecha con el método de Otsu
-     sobre el histograma del propio humedal, en vez de fijarlo en cero (ver *El umbral fijo era el
-     problema*),
-   - **agua libre**: píxeles válidos con MNDWI por encima de ese umbral y NDVI < 0.15,
-   - **vegetación inundada**: MNDWI por encima del umbral y NDVI >= 0.15 (masiega, carrizo, arrozal),
-   - turbidez: NDTI = (B04 - B03)/(B04 + B03) medio sobre el agua libre,
-   - clorofila: NDCI = (B05 - B04)/(B05 + B04) medio, percentil 90 y fracción con NDCI > 0.20,
-   - también NDWI > 0 y la clase agua de SCL, como contraste,
-   - **forma del espectro sobre el agua**: cociente infrarrojo/verde y azul mediano sobre una semilla
-     de agua, para detectar correcciones atmosféricas fallidas (ver *Cuando la atmósfera se corrige mal*),
-   - calidad: `ok`, `nublado` (> 20 % nubes), `neblina`, `espectro_anomalo`, `incoherente` (el agua por
-     índice contradice la clase agua de ESA), `parcial` (< 95 % cubierto), `sin_datos`.
-4. `store.py`: series CSV por humedal, upsert por fecha.
-5. `alerts.py`: el **valor actual** es la mediana de las observaciones `ok` de los últimos 20 días
-   (mínimo 2), no la última pasada, para amortiguar el parpadeo entre órbitas. Reglas:
-   - **desecación** (alta): agua libre por debajo del percentil 10 de las observaciones de años anteriores
-     en ±30 días del mismo día del año (mínimo 5 observaciones de referencia);
-   - **descenso brusco** (media): agua libre < 70 % de la mediana de los 45 días previos a la ventana
-     actual, **y** además una caída peor que el 90 % de las caídas registradas en esa misma época del
-     año (ver *Una laguna que se seca cada verano no es noticia*);
-   - **eutrofización**: el **pico** de NDCI de la ventana actual por encima del percentil 90 de los
-     picos de esa misma época del año en años anteriores, más un margen de 0,02. La gravedad la gradúa
-     el umbral de literatura (0,20): alta si además lo supera, media si no (ver *El umbral de clorofila
-     de la literatura no sirve aquí*);
-   - **turbidez** (media): NDTI por encima del percentil 90 histórico estacional.
-   Las lagunas de agua permanente (Mar Menor, l'Albufera) no generan alertas de superficie.
-6. `masks.py`: mide el **área inundable** de cada humedal acumulando el agua detectada en fechas
-   limpias de los meses húmedos (diciembre a abril), una por año y mes. Es el denominador con sentido
-   hidrológico de la métrica "fracción inundada": el polígono Natura 2000 es administrativo.
-7. `hydro.py`: contexto hidrológico medido en el suelo (calado de la marisma y lluvia) desde la API
-   de la ICTS-Doñana, para contrastar las alertas con una fuente que no es el satélite.
-8. `report.py`: informe HTML autocontenido (imágenes embebidas) con mapa folium; añade un cuarto panel
-   con el calado y la lluvia en los humedales que tienen estaciones de campo.
-9. `backfill.py`: carga masiva paralela y reanudable del histórico.
-
-## Limitaciones conocidas
-
-- En humedales someros con vegetación emergente (Tablas de Daimiel) el agua libre detectada oscila
-  mucho entre pasadas consecutivas (80 → 200 → 26 ha en diez días de agosto de 2026 con imágenes en
-  color natural casi idénticas) y la propia clase agua de ESA oscila igual. Es un límite espectral,
-  no un error: el agua bajo vegetación está en el filo del umbral MNDWI. El umbral adaptativo y la
-  mediana móvil de las alertas lo amortiguan, pero no lo eliminan; para hectáreas absolutas fiables
-  haría falta un composite de varias pasadas.
-- **Y no es solo cosa de humedales someros.** El Lac du Der es un embalse de 3.500 ha de agua abierta
-  y da el mismo salto entre finales de primavera y verano: el 1 de junio de 2021 medía 3.662 ha, el
-  16 medía 1.428 y el 26 volvía a 3.341, con cielo despejado en las tres fechas. Un embalse no
-  pierde 2.200 ha en dos semanas y las recupera en una. Lo que pasa es que esas hectáreas se mueven
-  a la clase de vegetación inundada: NDWI y la clase agua de ESA siguen dando 3.800-3.900 ha, y
-  `water_ha + wet_veg_ha` se queda plano en ≈3.900 ha de marzo a agosto. Medido sobre los meses 4 a 8
-  de los nueve años, la dispersión relativa es del 15,7 % en el agua abierta y del 7,6 % en la suma:
-  la mitad. La consecuencia práctica es que la línea discontinua de vegetación inundada de la
-  gráfica no es decorativa —cuando el agua abierta cae y ella sube, no ha pasado nada—, y que la
-  referencia estacional se ensancha, con lo que la alerta de desecación pierde sensibilidad ahí
-  antes que dar un falso positivo.
-- NDCI y NDTI son proxies; no están calibrados a mg/m³ ni NTU, y sus umbrales de literatura no valen
-  en lagunas someras y salinas. Sirven para detectar anomalías,
-  no para dar valores absolutos. Las Tablas viven con NDCI ≈ 0.15 de forma habitual en verano.
-- Las alertas relativas necesitan histórico: hasta tener varios años de serie solo funcionan las reglas
-  absolutas y la de descenso brusco.
-- El contexto hidrológico medido en el suelo solo existe en Doñana, y la lluvia solo desde 2022. En el
-  resto de humedales las alertas se quedan sin explicación de campo. En Francia la red sí está
-  abierta —Hub'Eau publica piezometría e hidrometría nacionales sin clave, y hay 38 piezómetros
-  dentro de los seis humedales— pero todavía no está enganchada.
-- Las correcciones atmosféricas fallidas se detectan, pero no se corrigen: esas fechas se pierden. En
-  Tablas de Daimiel son 97 de 475, la mayoría de S2C.
-- **Las medianas anuales no son comparables si el año está incompleto.** En el Mar Menor la mediana
-  anual de NDCI parecía subir de forma sostenida hasta 2026, y con la misma ventana de meses en todos
-  los años la tendencia desaparece: era el otoño que falta en 2026, no clorofila. Tampoco era deriva de
-  sensor (la subida aparente salía igual en S2A y en S2B). Cualquier lectura entre años tiene que
-  fijar la ventana estacional; las alertas ya lo hacen, la vista de la serie no.
-
-## Siguientes pasos
-
-1. Enganchar Hub'Eau como contexto de campo de los humedales franceses, que es la pieza que en el
-   lado español solo existe en Doñana.
-2. Ampliar el catálogo a la lista Ramsar española (76 sitios) y a las ZEPA de humedal.
-3. Notificaciones (correo/Telegram) cuando salta una alerta: hoy hay que entrar a mirar la página.
-4. Contraste con la capa Global Surface Water del JRC como validación externa del área inundable.
-5. Recuperar las fechas de espectro anómalo con una corrección atmosférica propia (DOS o similar)
-   en vez de descartarlas.
-6. Servicio web con suscripción por humedal, compartiendo infraestructura con el observatorio de alegaciones.
-7. Llevar el cruce de regadío a Tablas de Daimiel y Mar Menor (ver la sección de regadío).
-8. Corregir `stac.band_scale_offset` para que lea los datos y no la etiqueta `boa_offset_applied`.
-
-### La banda de probabilidad de nube no se puede usar
-
-Earth Search expone un asset `cloud` con la probabilidad de nube de Sen2Cor, pero su URL apunta a
-`CLD_20m.jp2` dentro del bucket original `sentinel-s2-l2a`: no es un COG, hay que leer el fichero
-entero y ese bucket cobra por petición. Incluirla multiplicaba por diez el tiempo de carga de Doñana
-y en una prueba no terminó en diez minutos. Se descartó. Las nubes finas que SCL no marca se detectan
-ahora con la propia banda azul: píxel con reflectancia azul > 0.22 se trata como nube, y si la mediana
-del humedal pasa de 0.12 la fecha entera se descarta por neblina.
-
-La otra optimización que cambió el orden de magnitud fue cargar con dask (`chunks`) en vez de
-secuencialmente: los COG se descargan en paralelo y Doñana pasó de 185 a 35 segundos por fecha.
-
-### Cuidado con la concurrencia: la red es el límite
-
-Dask abre por defecto un hilo por CPU (dieciséis en esta máquina). Con dos backfills simultáneos y
-nueve procesos entre ambos, eso pasaba de cien lecturas abiertas contra S3 a la vez, y el sistema
-empezaba a devolver `CURL error: Could not resolve host`, `WarpOperationError` y JPEG2000 truncados:
-más de trescientas lecturas fallidas y cientos de fechas perdidas, sin ganar velocidad (Doñana bajó
-solo de 33 a 31,7 s por fecha con cuatro procesos). Ahora `config.DASK_THREADS` limita los hilos por
-proceso a cuatro y el paralelismo real es el número de procesos.
-
 ### El umbral fijo era el problema
 
 MNDWI > 0 es el criterio de manual, pero el cero no es la orilla: depende de la turbidez, de la
@@ -454,6 +148,50 @@ las alertas: su concordancia con la ESA es 0,92. En Tablas de Daimiel el cambio 
 `espectro_anomalo` y bajó las `incoherente` de 41 a 7.
 
 Atacar la causa en vez del síntoma es lo que permitió recuperar el satélite en vez de perderlo.
+
+Parte de lo que este control atrapaba no era la atmósfera, sino un error nuestro con el offset
+radiométrico (ver la nota en *Fuentes*). En las escenas en las que Earth Search marca
+`boa_offset_applied: false` sin que sea cierto, el pipeline restaba 0,1 dos veces, el azul y el verde
+del agua se hundían al mínimo y la fecha caía como `espectro_anomalo`, `nublado` o `sin_datos`. Había
+141 fechas así de 7.846, en todos los humedales salvo La Dombes: la primera de diciembre de 2020
+(Lac de Grand-Lieu) y casi todas de 2022 en adelante. Y estaban sesgadas hacia S2C, porque en noviembre de
+2024 todas las afectadas son días con escenas de S2A y S2C, de la puesta en servicio de S2C. 77 de
+las 683 `espectro_anomalo` venían de aquí. Ninguna cifra publicada era falsa: el error solo tiraba
+fechas buenas. Con el offset decidido a partir de los datos se reprocesaron esas 141 fechas:
+
+| Humedal | afectadas | pasan a válidas | válidas antes → después |
+|---|---|---|---|
+| l'Albufera de València | 10 | 6 | 352 → 358 |
+| Grande Brenne | 17 | 5 | 292 → 297 |
+| Camarga | 16 | 10 | 598 → 608 |
+| La Dombes | 0 | 0 | 17 → 17 |
+| Doñana | 10 | 6 | 347 → 353 |
+| Fuente de Piedra | 13 | 7 | 420 → 427 |
+| Gallocanta | 14 | 7 | 503 → 510 |
+| Lac de Grand-Lieu | 13 | 5 | 249 → 254 |
+| Lac du Der-Chantecoq | 19 | 12 | 337 → 349 |
+| Mar Menor | 19 | 12 | 361 → 373 |
+| Marais Poitevin | 6 | 0 | 140 → 140 |
+| Tablas de Daimiel | 4 | 2 | 264 → 266 |
+| **Total** | **141** | **72** | **3.880 → 3.952** |
+
+Las 69 que no se recuperan tienen motivos propios: nubes según la SCL, cobertura parcial o un
+espectro de agua que sigue siendo anómalo (en Doñana, el 14 de febrero de 2025 el infrarrojo/verde sobre
+el agua sale 1,44). Solo cinco conservan el azul recortado. Tres están nubladas en más del 85 %, y las
+otras dos, del Mar Menor (24 de febrero de 2022 y 9 de enero de 2026), son escenas marcadas `true`
+cuyo agua llega con DN 1: corrección atmosférica fallida de verdad. Las `espectro_anomalo` bajan de 683
+a 611, y la fracción de fechas válidas de S2C sube del 41 % al 46 % (la de S2A y S2B, del 50,4 % al
+50,9 %). Así que una parte de la mala fama de S2C también era este error.
+
+### El caso de las escenas incoherentes
+
+El 11 y el 21 de julio de 2026 en Tablas de Daimiel el MNDWI dio cero hectáreas de agua entre fechas
+con 150 y 190 ha, mientras la imagen en color natural mostraba la misma lámina oscura y la clasificación
+de ESA seguía marcando unas 85 ha de agua. Fue el hilo del que salieron el umbral adaptativo y el
+control espectral: las dos escenas son de S2C y traen el infrarrojo de onda corta alto (mediana 0.271
+frente a 0.242 el día 16), pero la causa no era el sensor sino la corrección atmosférica. Hoy esas dos
+fechas se descartan por `espectro_anomalo`, que nombra el motivo real, y el resto de fechas de S2C
+cuentan con normalidad.
 
 ### El umbral de clorofila de la literatura no sirve aquí
 
@@ -558,6 +296,69 @@ año y mes, y de ahí saca dos superficies: la **inundable**, con agua en alguna
 existe y cae al polígono cuando no, así que la métrica mejora sin recalcular ninguna serie: son
 constantes del humedal, no columnas de cada fecha.
 
+### La banda de probabilidad de nube no se puede usar
+
+Earth Search expone un asset `cloud` con la probabilidad de nube de Sen2Cor, pero su URL apunta a
+`CLD_20m.jp2` dentro del bucket original `sentinel-s2-l2a`: no es un COG, hay que leer el fichero
+entero y ese bucket cobra por petición. Incluirla multiplicaba por diez el tiempo de carga de Doñana
+y en una prueba no terminó en diez minutos. Se descartó. Las nubes finas que SCL no marca se detectan
+ahora con la propia banda azul: píxel con reflectancia azul > 0.22 se trata como nube, y si la mediana
+del humedal pasa de 0.12 la fecha entera se descarta por neblina.
+
+La otra optimización que cambió el orden de magnitud fue cargar con dask (`chunks`) en vez de
+secuencialmente: los COG se descargan en paralelo y Doñana pasó de 185 a 35 segundos por fecha.
+
+### Cuidado con la concurrencia: la red es el límite
+
+Dask abre por defecto un hilo por CPU (dieciséis en esta máquina). Con dos backfills simultáneos y
+nueve procesos entre ambos, eso pasaba de cien lecturas abiertas contra S3 a la vez, y el sistema
+empezaba a devolver `CURL error: Could not resolve host`, `WarpOperationError` y JPEG2000 truncados:
+más de trescientas lecturas fallidas y cientos de fechas perdidas, sin ganar velocidad (Doñana bajó
+solo de 33 a 31,7 s por fecha con cuatro procesos). Ahora `config.DASK_THREADS` limita los hilos por
+proceso a cuatro y el paralelismo real es el número de procesos.
+
+## Contraste y validación
+
+Prototipo v0.1 (3 de septiembre de 2026). Funciona de extremo a extremo sin ninguna clave de acceso, y
+los **seis humedales tienen ya el histórico completo** de julio de 2017 a septiembre de 2026, cargado
+sin una sola fecha perdida por error de red:
+
+| Humedal | fechas | válidas | agua libre 2017 → 2026 (mediana anual, ha) |
+|---|---|---|---|
+| Tablas de Daimiel | 475 | 259 | 236 → 248, con el fondo en 26 (2023) |
+| Mar Menor | 553 | 357 | 13.336 → 13.184, estable |
+| l'Albufera de València | 493 | 350 | 9.129 → 9.072, estable |
+| Fuente de Piedra | 960 | 420 | 200 → 1.014, muy variable |
+| Gallocanta | 889 | 494 | 441 → 811, con el fondo en 237 (2025) |
+| Doñana | 598 | 341 | 7.528 → 11.159, creciendo desde 2024 |
+
+Los dos humedales pequeños salen con casi el doble de fechas porque caen en el solape de varias
+órbitas. Las cifras de l'Albufera incluyen el arrozal inundado del sitio Natura 2000, no solo la
+laguna, que son unas 2.300 ha: para esa laguna la métrica que importa es la del área inundable.
+
+La serie de Tablas de Daimiel reproduce la sequía documentada de La Mancha y su recuperación; mediana
+anual de agua libre en hectáreas:
+
+| 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 |
+|---|---|---|---|---|---|---|---|---|---|
+| 236 | 241 | 181 | 88 | 60 | 50 | 26 | 85 | 159 | 248 |
+
+2017 arranca en julio y 2026 acaba en septiembre, así que sus medianas no cubren el año entero; con la
+misma ventana de meses en todos los años (enero a septiembre) la serie es 258, 249, 190, 90, 65, 53,
+52, 85, 170, 248 ha, es decir la misma forma pero con un 2023 menos extremo, porque lo peor de aquella
+sequía fue el otoño. Comparar medianas anuales entre años incompletos es una trampa fácil (ver
+*Límites*); las alertas no la pisan porque siempre comparan contra la misma época del año.
+
+El fondo de la sequía en 2023 y la recuperación de 2025-2026 coinciden con el calado medido en el
+suelo en la marisma de Doñana (máximos anuales de 0,18 m en 2023 y 1,10 m en 2026), que es una fuente
+independiente del satélite: ver *Contexto hidrológico*.
+
+Y hay dos controles de que las hectáreas absolutas significan algo, no solo sus variaciones. El
+primero es el Mar Menor, cuya lámina permanente no debería moverse: sale entre 12.950 y 13.340 ha de
+mediana anual en nueve años, frente a las 13.500 ha que se citan habitualmente para la laguna. El
+segundo es la correlación de 0,94 entre el área inundada de Doñana y el calado medido en el suelo en
+la marisma, sobre 168 fechas (ver *Contexto hidrológico*).
+
 ### Contexto hidrológico: el calado de la marisma
 
 Las alertas dicen que el agua baja, pero no por qué. La ICTS-Doñana (Estación Biológica de Doñana,
@@ -600,12 +401,272 @@ Los piezómetros públicos no sirven todavía: la red Almonte-Marismas de la Con
 Guadalquivir tiene 195 puntos oficiales pero solo visor, el catálogo de la Mancha Occidental está en
 construcción y el anuario de aforos nacional solo se descarga a mano.
 
-### El caso de las escenas incoherentes
+## Límites
 
-El 11 y el 21 de julio de 2026 en Tablas de Daimiel el MNDWI dio cero hectáreas de agua entre fechas
-con 150 y 190 ha, mientras la imagen en color natural mostraba la misma lámina oscura y la clasificación
-de ESA seguía marcando unas 85 ha de agua. Fue el hilo del que salieron el umbral adaptativo y el
-control espectral: las dos escenas son de S2C y traen el infrarrojo de onda corta alto (mediana 0.271
-frente a 0.242 el día 16), pero la causa no era el sensor sino la corrección atmosférica. Hoy esas dos
-fechas se descartan por `espectro_anomalo`, que nombra el motivo real, y el resto de fechas de S2C
-cuentan con normalidad.
+- En humedales someros con vegetación emergente (Tablas de Daimiel) el agua libre detectada oscila
+  mucho entre pasadas consecutivas (80 → 200 → 26 ha en diez días de agosto de 2026 con imágenes en
+  color natural casi idénticas) y la propia clase agua de ESA oscila igual. Es un límite espectral,
+  no un error: el agua bajo vegetación está en el filo del umbral MNDWI. El umbral adaptativo y la
+  mediana móvil de las alertas lo amortiguan, pero no lo eliminan; para hectáreas absolutas fiables
+  haría falta un composite de varias pasadas.
+- **Y no es solo cosa de humedales someros.** El Lac du Der es un embalse de 3.500 ha de agua abierta
+  y da el mismo salto entre finales de primavera y verano: el 1 de junio de 2021 medía 3.662 ha, el
+  16 medía 1.428 y el 26 volvía a 3.341, con cielo despejado en las tres fechas. Un embalse no
+  pierde 2.200 ha en dos semanas y las recupera en una. Lo que pasa es que esas hectáreas se mueven
+  a la clase de vegetación inundada: NDWI y la clase agua de ESA siguen dando 3.800-3.900 ha, y
+  `water_ha + wet_veg_ha` se queda plano en ≈3.900 ha de marzo a agosto. Medido sobre los meses 4 a 8
+  de los nueve años, la dispersión relativa es del 15,7 % en el agua abierta y del 7,6 % en la suma:
+  la mitad. La consecuencia práctica es que la línea discontinua de vegetación inundada de la
+  gráfica no es decorativa —cuando el agua abierta cae y ella sube, no ha pasado nada—, y que la
+  referencia estacional se ensancha, con lo que la alerta de desecación pierde sensibilidad ahí
+  antes que dar un falso positivo.
+- NDCI y NDTI son proxies; no están calibrados a mg/m³ ni NTU, y sus umbrales de literatura no valen
+  en lagunas someras y salinas. Sirven para detectar anomalías,
+  no para dar valores absolutos. Las Tablas viven con NDCI ≈ 0.15 de forma habitual en verano.
+- Las alertas relativas necesitan histórico: hasta tener varios años de serie solo funcionan las reglas
+  absolutas y la de descenso brusco.
+- El contexto hidrológico medido en el suelo solo existe en Doñana, y la lluvia solo desde 2022. En el
+  resto de humedales las alertas se quedan sin explicación de campo. En Francia la red sí está
+  abierta —Hub'Eau publica piezometría e hidrometría nacionales sin clave, y hay 38 piezómetros
+  dentro de los seis humedales— pero todavía no está enganchada.
+- Las correcciones atmosféricas fallidas se detectan, pero no se corrigen: esas fechas se pierden. En
+  Tablas de Daimiel son 97 de 475, la mayoría de S2C.
+- **Las medianas anuales no son comparables si el año está incompleto.** En el Mar Menor la mediana
+  anual de NDCI parecía subir de forma sostenida hasta 2026, y con la misma ventana de meses en todos
+  los años la tendencia desaparece: era el otoño que falta en 2026, no clorofila. Tampoco era deriva de
+  sensor (la subida aparente salía igual en S2A y en S2B). Cualquier lectura entre años tiene que
+  fijar la ventana estacional; las alertas ya lo hacen, la vista de la serie no.
+
+## Regadío fuera del suelo regable (Doñana)
+
+Segundo producto del repositorio, con otra pregunta: no cuánta agua hay en el humedal, sino cuánta
+tierra se riega a su alrededor donde el plan no lo permite. El Plan Especial de la Corona Forestal
+de Doñana (2014) delimitó el **suelo agrícola regable** (SAR): unas 9.500 ha dentro de un ámbito
+de 64.400 ha en el Condado de Huelva. Fuera del SAR el plan no admite regadío. El acuífero que
+alimenta la marisma es el mismo del que beben esas fincas.
+
+La página está en
+[/regadio.html](https://asensio94.github.io/vigilancia-humedales/regadio.html) y la regenera una
+vez por campaña `.github/workflows/regadio.yml` (15 de abril, o a mano). Cada campaña deja
+`data/irrigation/donana_<año>.geojson` (las manchas) y `.json` (el resumen y el embudo).
+
+**La firma que se busca es el plástico.** El fresón y los frutos rojos de Huelva se cultivan bajo
+macrotúnel de enero a marzo, y el plástico es fácil de ver desde Sentinel-2 y difícil de confundir:
+un regadío de cereal o de cítricos no deja esa huella, así que esto mide el regadío de frutos rojos,
+no todo el regadío. Por observación, un píxel es plástico si cumple a la vez:
+
+- RPGI = 100·azul / (1 − media(azul, verde, NIR)) ≥ 10 (índice de invernadero de Yang et al.)
+- PMLI = (SWIR1 − rojo) / (SWIR1 + rojo) ≤ 0,10 (Lu et al.; el plástico no tiene el SWIR alto del suelo seco)
+- azul / rojo ≥ 0,75, que quita la arena amarilla del Abalario, el falso positivo más frecuente
+- azul < 0,22 y SCL de suelo, vegetación o agua, para dejar fuera nubes y bruma
+
+Después, en rejilla de 10 m (EPSG:25830): plástico en **al menos 2 fechas** válidas de la ventana;
+fuera del SAR y a más de 20 m de su borde (dos píxeles, para que el error de georreferencia y de la
+cartografía no cuente como infracción); en un recinto SIGPAC de uso agrario (se quitan caminos,
+edificaciones, improductivos, agua y urbano), y en manchas de al menos 0,5 ha. Cada mancha lleva su
+zona del plan, su distancia al SAR, el recinto SIGPAC mayoritario con su uso y coeficiente de
+regadío declarados, y un enlace a la consulta pública del visor SIGPAC. **Nunca se guarda ni se
+publica quién es el titular**: SIGPAC abierto no lo trae, y no se buscará en otras fuentes.
+
+Cuatro campañas calculadas:
+
+| campaña | fechas (despejadas) | plástico en el ámbito | dentro del SAR | fuera del SAR | % del plástico | manchas | fuera y declarado en SIGPAC |
+|---|---|---|---|---|---|---|---|
+| 2023 | 11 (8) | 4.560 ha | 3.953 ha | 250,8 ha | 5,5 % | 144 | 237,6 ha |
+| 2024 | 9 (6) | 2.731 ha | 2.311 ha | 135,5 ha | 5,0 % | 103 | 130,1 ha |
+| 2025 | 14 (6) | 5.235 ha | 4.435 ha | 307,0 ha | 5,9 % | 179 | 291,2 ha |
+| 2026 | 13 (9) | 4.533 ha | 3.968 ha | 176,6 ha | 3,9 % | 108 | 168,3 ha |
+
+Las hectáreas siguen al tiempo que hizo más que a las fincas: como se exige plástico en dos fechas,
+un invierno nublado rebaja todo el ámbito a la vez (2024 tuvo una sola fecha despejada antes del 20
+de febrero y se queda en la mitad de plástico, dentro y fuera del SAR). Lo comparable entre años es
+la proporción: **entre el 4 y el 6 % del plástico del ámbito está fuera del suelo regable**, y casi
+todo (el 95 % de las hectáreas, todos los años) está en recintos que SIGPAC declara como invernadero o regadío.
+Entre el 84 y el 91 % de las hectáreas están a 50 m o menos del SAR, la mayoría a 11-20 m: son fincas
+que siguen más allá de la línea, no claros abiertos en mitad del pinar. Por zona del plan se reparte
+casi a medias entre la A (forestal) y la C (agrícola no regable).
+
+**Comprobado con la ortofoto.** Las 144 manchas de 2023 se miraron sobre el PNOA del IGN (vuelo
+de junio de 2022, 25 cm) y se clasificaron a ojo en `data/irrigation/validation/donana_2023_PNOA2022.csv`:
+
+| etiqueta | manchas | ha |
+|---|---|---|
+| invernadero (túnel cubierto o solo los arcos) | 115 | 198,0 |
+| cultivo sin estructura visible | 27 | 46,5 |
+| no agrícola | 2 | 6,3 |
+
+El 80 % de las manchas (79 % de las hectáreas) muestra túneles y el 99 % es terreno agrícola. La
+cifra de túneles es un mínimo: el vuelo es de verano, cuando muchos túneles ya están desmontados. Los
+dos falsos positivos son franjas de arena en el pinar, probablemente cortafuegos sobre recintos SIGPAC
+forestales, que el filtro azul/rojo no llega a separar del plástico; si se repiten en otras campañas,
+habrá que filtrarlos por forma (largos y estrechos). **La clasificación la hizo Claude (un modelo de
+IA) sobre las mismas imágenes y está pendiente de revisión humana**. La página enseña cada mancha con
+la ortofoto pedida en directo al WMS del IGN y su contorno encima, para que se pueda discutir una a
+una. Para rehacerla sobre otra campaña, `validation.contact_sheets` genera hojas numeradas en
+`data/cache/`, y el CSV se rellena con `validation.write_labels`.
+
+**Qué no dice esto.** Es un indicio, no una infracción. La regularización de 2014 tuvo excepciones
+(art. 26.6 del plan) que no están en la capa, el SAR se ha revisado y puede volver a hacerlo, y que
+SIGPAC declare un recinto como regadío dice qué cobra de la PAC, no qué agua tiene concedida. Las
+concesiones de la Confederación no son públicas como capa; si algún día lo son, este cruce es el
+que hay que rehacer. Tampoco se compara con el informe de WWF (2021), que contó 1.653 ha fuera del
+SAR por fotointerpretación y con la delimitación anterior: otro método y otro suelo de referencia.
+
+**SIGPAC caduca.** FEGA solo publica la campaña en curso y la anterior, así que las campañas viejas
+se cruzan con el SIGPAC más cercano que siga en línea (lo dice el resumen, `sigpac_campaign`) y la
+caché del workflow es la única copia de los ficheros que FEGA retira.
+
+**Un error del catálogo que también afectaba a la serie diaria.** Earth Search marca algunas escenas
+con `earthsearch:boa_offset_applied = false` cuando el desplazamiento de −0,1 de la línea base 04.00
+ya está aplicado: sus valores de azul en bruto rondan 200-340 en vez de 1.200-1.340. Si se resta
+otra vez, el azul se va a cero y el plástico desaparece. Aquí no se fía de la etiqueta:
+`offset_already_applied` mira el percentil 1 de los datos. La serie de agua hacía lo mismo hasta que se corrigió con el mismo
+criterio (ver *Ojo con el offset radiométrico*).
+
+**Siguientes sitios.** Tablas de Daimiel (pozos del acuífero 23: aquí la firma sería verdor de
+regadío en verano, NDVI alto en julio-agosto en secano declarado) y Mar Menor (zonas de la Ley
+3/2020 de la CARM y regadío de la CHS, cuyas capas traen un campo `TITULARES` que no se descargará).
+
+
+## Pendiente
+
+1. Enganchar Hub'Eau como contexto de campo de los humedales franceses, que es la pieza que en el
+   lado español solo existe en Doñana.
+2. Ampliar el catálogo a la lista Ramsar española (76 sitios) y a las ZEPA de humedal.
+3. Notificaciones (correo/Telegram) cuando salta una alerta: hoy hay que entrar a mirar la página.
+4. Contraste con la capa Global Surface Water del JRC como validación externa del área inundable.
+5. Recuperar las fechas de espectro anómalo con una corrección atmosférica propia (DOS o similar)
+   en vez de descartarlas.
+6. Servicio web con suscripción por humedal, compartiendo infraestructura con el observatorio de alegaciones.
+7. Llevar el cruce de regadío a Tablas de Daimiel y Mar Menor (ver la sección de regadío).
+
+## Uso
+
+```bash
+.venv/Scripts/python.exe -m humedales.cli sites
+.venv/Scripts/python.exe -m humedales.cli run --site tablas-daimiel --since 2026-06-01
+.venv/Scripts/python.exe -m humedales.cli run                 # todos, solo fechas nuevas
+.venv/Scripts/python.exe -m humedales.cli report              # informe desde las series guardadas
+.venv/Scripts/python.exe -m humedales.cli backfill            # histórico completo desde 2017
+.venv/Scripts/python.exe -m humedales.cli mask                # mide el área inundable de cada humedal
+.venv/Scripts/python.exe -m humedales.cli irrigation --year 2025  # regadío fuera del suelo regable
+```
+
+Genera `output/informe_<fecha>.html` (resumen, alertas, gráficas de serie, imagen de la última fecha,
+mapa) y `output/alertas_<fecha>.json`. Las series viven en `data/series/<humedal>.csv`, una fila por fecha,
+y se amplían de forma incremental: cada ejecución solo procesa las fechas que faltan.
+
+### Publicar el informe
+
+Cada día a las 06:20 UTC, [un workflow de GitHub Actions](.github/workflows/vigilancia.yml)
+descarga las fechas nuevas, recalcula las alertas, guarda las series en `master` y publica el
+informe. Las alertas del día quedan en el resumen de la ejecución, que es lo que se ve al abrir el
+correo de Actions. También se puede lanzar a mano desde la pestaña *Actions*.
+
+A las 06:20 y no a la hora del paso del satélite porque las escenas tardan varias horas en
+aparecer como L2A en el catálogo: pedirlas antes es pedirlas antes de que existan.
+
+Una fecha nueva de satélite llega cada varios días, y nunca el mismo día en los seis humedales, así
+que un informe diario solo podría dibujar uno de los seis mapas. La última imagen de cada humedal se
+guarda en `data/img/` y el informe la reutiliza los días sin escena nueva, con la fecha impresa
+dentro de la propia imagen para que no engañe. Entre ejecuciones viaja en la caché de Actions, y en
+el repositorio hay una copia como semilla para cuando la caché no está.
+
+Para publicar desde este equipo, sin esperar al cron:
+
+```powershell
+.\publicar.ps1            # sube el informe más reciente a GitHub Pages
+```
+
+Hay **una página por país**: España se queda en `index.html`, que es la URL que ya estaba publicada,
+y Francia va en `france.html`, con un enlace de una a otra. No es solo por peso: la hidrología, las
+fuentes de contexto y el lector de cada uno son distintos, y una tabla resumen que mezcla Doñana con
+la Camarga no se lee mejor por ser más larga.
+
+El informe es un solo fichero HTML autocontenido —las gráficas y las imágenes viajan incrustadas en
+base64—, así que publicarlo es copiarlo: no hay plantillas, ni assets, ni build. Eso cuesta unos 2,5 MB
+por informe, y por eso la rama `gh-pages` es huérfana y guarda **un solo commit**, que el script
+reemplaza con `--amend` y un push forzado. Es deliberado: acumular un histórico de informes de 2 MB
+en el repositorio no aporta nada, porque las series de las que sale cada informe ya están versionadas
+en `data/series/`.
+
+### Backfill del histórico
+
+`backfill` construye la referencia histórica desde julio de 2017, que es cuando empieza Sentinel-2 L2A
+en el catálogo. Reparte las fechas entre varios procesos (la descarga desde S3 es el cuello de botella,
+no el cálculo), guarda cada doce fechas y omite las que ya están en el CSV, así que es **reanudable**:
+si se interrumpe, se repite el mismo comando y continúa donde estaba.
+
+```bash
+# Doñana aparte, con menos procesos: sus mosaicos son de 3.000 x 2.800 px por banda
+.venv/Scripts/python.exe -m humedales.cli backfill -s donana --workers 4
+.venv/Scripts/python.exe -m humedales.cli backfill -s tablas-daimiel -s mar-menor --workers 5
+```
+
+Son unas 475-600 fechas por humedal en nueve años, unos 3 s por fecha en los humedales pequeños con
+cinco procesos y unos 25 s en Doñana, que necesita 4,5 escenas por fecha. Conviene lanzar **un humedal
+a la vez**: cada proceso abre ya varias descargas en paralelo y con dos backfills simultáneos se
+saturaba la red (ver *Cuidado con la concurrencia*).
+
+Las fechas que fallan por red se reintentan tres veces dentro del proceso hijo y, si aun así fallan,
+se registran con la marca `FALLO` y quedan sin guardar: como el backfill es reanudable, basta repetir
+el mismo comando para volver a intentarlas.
+
+## Datos que se guardan
+
+| Fichero | Contenido |
+|---|---|
+| `data/series/<humedal>.csv` | Una fila por fecha: escenas usadas, cobertura, nubes, umbral de agua del día, agua libre, vegetación inundada, NDCI, NDTI, controles espectrales y calidad. |
+| `data/sites/<humedal>.geojson` | Polígono Natura 2000 del humedal, con la propiedad `sea_clipped` cuando se le ha recortado el mar. |
+| `data/sites/<humedal>_costa.geojson` | Línea de costa de OpenStreetMap con la que se recorta el mar (Camarga y Marais Poitevin). |
+| `data/masks/<humedal>.json` | Área inundable y permanente medidas por `mask`, con las fechas usadas. |
+| `data/hydro/<estación>_<variable>_<sensor>.csv` | Calado y lluvia diarios de la ICTS-Doñana (`date,value`). |
+| `data/hydro/stations.json` | Estaciones de la ICTS-Doñana asociadas a cada humedal, con su variable y sensor. |
+| `data/hydro/instruments.json` | Sensor elegido por `choose_instrument` para cada humedal y variable. |
+| `data/img/<humedal>_<fecha>.jpg` | Última imagen de cada humedal, reutilizada los días sin escena nueva. |
+| `output/` (no versionado) | `informe_<país>_<fecha>.html`, `alertas_<fecha>.json` y `alertas_<país>_<fecha>.json`. |
+
+## Fuentes y licencias
+
+| Fuente | Uso | Acceso |
+|---|---|---|
+| Earth Search v1 (Element 84, AWS) `sentinel-2-l2a` | catálogo STAC y COG de cada banda; histórico desde 2017 | público, sin clave |
+| EEA Natura 2000 (ArcGIS REST) | polígono de cada humedal por código de sitio | público |
+| OpenStreetMap Overpass | trazos `natural=coastline` para recortar el mar de los humedales costeros | público, exige `User-Agent` |
+| ICTS-Doñana Hidromet (`datos-automaticos.icts-donana.es`) | calado diario de la marisma y lluvia, medidos en el suelo | público, CC BY 4.0, 100 peticiones/hora por IP |
+| REDIAM, WFS `REDIAM_zonificacion_plan_regadios_corona_forestal_donana` (capa `Zona_B_C_regable`) | zonificación del Plan Especial de la Corona Forestal (Decreto 178/2014): suelo agrícola regable (`SAR_1025`) y zonas A, B y C | público, sin clave; copia versionada en `data/legal/` |
+| FEGA, descarga ATOM de recintos SIGPAC | uso declarado (`uso_sigpac`) y coeficiente de regadío de cada recinto, por municipio y campaña | público; solo las dos últimas campañas en línea. No contiene titulares |
+| IGN, PNOA histórico (WMS `https://www.ign.es/wms/pnoa-historico`, capas `PNOA2022`, `PNOA2019`) | ortofoto de 25 cm para comprobar las manchas de regadío; la página la enlaza, no la copia | público, CC BY 4.0. Pedir PNG: en JPEG con `Accept-Encoding: gzip` responde 500 |
+
+**Los contornos van versionados, y eso es deliberado.** `data/sites/` guarda el polígono de cada
+humedal y la línea de costa con la que se recorta, y está en el repositorio en vez de ignorado.
+El motivo no es ahorrar dos peticiones al día: es que una serie de superficie de agua solo se
+puede comparar consigo misma si el contorno sobre el que se mide no se mueve. Si la EEA reajusta
+un polígono o alguien redibuja una playa en OSM, la lámina medida cambia sin que haya pasado nada
+en el humedal, y el salto entra en el histórico como si fuera real. Fijados en el repositorio, esa
+actualización es un cambio explícito (`site_geometry(..., refresh=True)`, y a rehacer la máscara)
+en vez de un accidente silencioso. De paso, el trabajo diario no depende de que Overpass conteste.
+
+Alternativas comprobadas: Microsoft Planetary Computer sirve el mismo producto (STAC público); Copernicus
+Data Space exige registro. El WFS de Ramsar (`rsis.ramsar.org/geoserver`) tiene un esquema no estándar
+y MITECO solo expone WMS para el Inventario de Zonas Húmedas, por eso los límites salen de Natura 2000.
+
+**Ojo con el offset radiométrico.** Desde la baseline 04.00 (enero 2022) ESA añade -1000 DN a los
+productos L2A. Earth Search ya lo aplica dentro de sus COG y lo indica con la propiedad
+`earthsearch:boa_offset_applied`, aunque `raster:bands` siga declarando `offset: -0.1`. Restarlo otra
+vez deja la mitad del humedal con reflectancia negativa y arruina todos los índices (fue el primer
+error del prototipo).
+
+Pero la propiedad solo es fiable cuando dice `true`. Muchas escenas marcadas `false` también llegan
+con el offset ya quitado: en una parcela agrícola fija junto a Moguer, en 2025, el azul mediano es de
+288 y 280 DN en escenas `true` y de 208 y 336 DN en escenas `false`, cuando con el offset dentro
+rondaría los 1.300. Fiarse del `false` restaba 0,1 dos veces, el azul acababa en el mínimo de 1e-4 y la
+fecha se descartaba. Ahora lo deciden los datos (`indices.offset_already_applied`): con el offset
+dentro nada en tierra baja de 1.000 DN en el azul, así que si el percentil 1 del azul de la zona
+cargada queda por debajo, el offset ya está fuera. Al reprocesar las 141 fechas con el azul mediano
+recortado (≤ 0,0002), 72 pasaron a válidas (ver *Cuando la atmósfera se corrige mal*).
+
+**Licencias.** El código es MIT (ver [`LICENSE`](LICENSE)). Los datos de terceros conservan la
+suya: los de la ICTS-Doñana son CC BY 4.0 y la línea de costa de OpenStreetMap es ODbL.
+
+Forma parte de un conjunto de proyectos hermanos: [Observatorio de alegaciones](https://asensio94.github.io/observatorio-alegaciones/), [Vigía de incendios](https://asensio94.github.io/vigia-incendios/), [Centinela Natura](https://asensio94.github.io/centinela-natura/), [Sub Nocte](https://asensio94.github.io/sub-nocte/), [Riesgo de tendidos para aves](https://asensio94.github.io/riesgo-tendidos-aves/), [Grafo de promotores](https://asensio94.github.io/grafo-promotores/), [Cartera de las cotizadas](https://asensio94.github.io/cartera-cotizadas/) y [Cuaderno de campo](https://asensio94.github.io/cuaderno-campo/).

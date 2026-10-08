@@ -91,10 +91,22 @@ def load_day(items: list[Item], geom, resolution_m: int | None = None,
     return ds.isel(time=0).compute(scheduler="threads", num_workers=config.DASK_THREADS)
 
 
-def _reflectance(ds: xr.Dataset, item: Item, band: str) -> np.ndarray:
+def offset_already_applied(blue_dn: np.ndarray) -> bool:
+    """Si el offset de -1000 DN de la baseline >= 04.00 ya no está en los números.
+
+    ``earthsearch:boa_offset_applied`` no basta: hay escenas marcadas False que ya
+    vienen sin el offset (ver stac.band_scale_offset). Con el offset dentro nada en
+    tierra baja de 1.000 DN en el azul; sin él, el percentil 1 de la zona cargada
+    se queda en unos cientos como mucho.
+    """
+    v = blue_dn[blue_dn > 0]
+    return v.size == 0 or float(np.percentile(v, 1)) < 1000
+
+
+def _reflectance(ds: xr.Dataset, item: Item, band: str, applied: bool) -> np.ndarray:
     scale, offset = band_scale_offset(item, band)
     dn = ds[band].values.astype("float32")
-    refl = dn * scale + offset
+    refl = dn * scale + (0.0 if applied else offset)
     # Se acota a un mínimo positivo para que los cocientes normalizados queden en [-1, 1].
     refl = np.clip(refl, 1e-4, 1.5)
     refl[dn == 0] = np.nan
@@ -186,7 +198,8 @@ def observe(site_slug: str, day: date, items: list[Item], geom,
     covered = inside & ~nodata
 
     ref = items[0]
-    B, G, R, RE, NIR, SWIR = (_reflectance(ds, ref, b)
+    applied = offset_already_applied(ds["blue"].values)
+    B, G, R, RE, NIR, SWIR = (_reflectance(ds, ref, b, applied)
                               for b in ("blue", "green", "red", "rededge1", "nir", "swir16"))
 
     # Nube = clase inválida de SCL o píxel muy brillante en el azul (nubes finas que
