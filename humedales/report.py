@@ -269,6 +269,8 @@ def render(results: dict[str, dict], run_date: date, pais: str = "ES") -> str:
     otros = "".join(
         f' · <a href="{fichero}">{nombre}</a>'
         for codigo, (nombre, fichero) in PAISES.items() if codigo != pais)
+    if pais == "ES":
+        otros += ' · <a href="regadio.html">Regadío fuera del suelo regable en Doñana</a>'
     parts = [
         "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\">",
         f"<title>Vigilancia de humedales · {nombre_pais} · {run_date.isoformat()}</title>",

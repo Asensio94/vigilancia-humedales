@@ -126,3 +126,60 @@ NDVI_OPEN_WATER = 0.15     # agua libre si además NDVI < este valor; si no, veg
 # menores se detectan por comparación con el histórico del propio humedal.
 NDCI_BLOOM = 0.20          # NDCI por encima del cual se considera floración algal
 NDCI_BLOOM_FRAC = 0.50     # fracción de agua libre con NDCI > NDCI_BLOOM que dispara alerta
+
+# --- Irrigation outside the legal irrigable land (irrigation.py, legal.py) -------------
+# Kept apart from the water series: it is a yearly product, not a daily one.
+LEGAL_DIR = DATA_DIR / "legal"            # official zoning, versioned (see legal.py)
+IRRIGATION_DIR = DATA_DIR / "irrigation"  # one GeoJSON + summary per site and campaign
+CACHE_DIR = DATA_DIR / "cache"            # SIGPAC downloads; not versioned
+for _d in (LEGAL_DIR, IRRIGATION_DIR, CACHE_DIR):
+    _d.mkdir(parents=True, exist_ok=True)
+
+PEORCFD_WFS = ("https://www.juntadeandalucia.es/medioambiente/mapwms/"
+               "REDIAM_zonificacion_plan_regadios_corona_forestal_donana")
+SIGPAC_ATOM = "https://www.fega.gob.es/atom"
+SIGPAC_QUERY = "https://sigpac-hubcloud.es/servicioconsultassigpac/query"
+ZONING_SIMPLIFY_M = 1.0    # the zoning is drawn at 1:10,000; 1 m changes no pixel
+
+# 10 m, not the 20 or 40 m of the water series: a strawberry macro-tunnel block is a few
+# hectares and the strips of plastic between forest are 30-60 m wide.
+IRRIGATION_CRS = "EPSG:25830"
+IRRIGATION_RES_M = 10
+IRRIGATION_BANDS = ["blue", "green", "red", "nir", "swir16", "scl"]
+
+# Plastic cover, per observation. RPGI (Yang et al. 2017) is high on the white, bright
+# plastic; PMLI (Lu et al. 2014) is low on it because plastic barely changes from red to
+# SWIR, while soil and vegetation rise. Measured on Doñana 2025 (Moguer-Lucena):
+# RPGI >= 10 and PMLI <= 0.10 outline the tunnels; 12 / 0.05 lose a third of each block.
+# Bare yellow sand (firebreaks, clearings in the pine forest) also passes both, so a
+# third rule asks for a white surface: blue/red is 0.84-1.08 (p10-p90) on plastic and
+# 0.34-0.71 on sand.
+PLASTIC_RPGI_MIN = 10.0
+PLASTIC_PMLI_MAX = 0.10
+PLASTIC_BLUE_RED_MIN = 0.75
+PLASTIC_BLUE_MAX = 0.22    # brighter blue is cloud (same cut as BLUE_CLOUD)
+IRRIGATION_SCL_VALID = {4, 5, 6, 7}   # vegetation, bare soil, water, unclassified
+
+# Persistence: plastic seen on at least this many valid dates of the window. One date
+# alone can be a cloud edge or a field being covered that week.
+PLASTIC_MIN_DATES = 2
+DAY_MIN_COVERAGE = 0.05    # a day that sees less of the plan area than this is skipped
+# 20 m (two pixels) of tolerance around the legal irrigable land: mixed pixels at the
+# edge and the precision of a 1:10,000 cartography. A strip narrower than this along
+# a boundary is not reported.
+LEGAL_EDGE_M = 20
+# A patch this close to the irrigable land reads as a farm grown past the SAR line; a
+# farther one, as a separate plot. Only used to split the total in the report.
+ADJACENT_M = 50
+PATCH_MIN_HA = 0.5         # smaller patches outside the irrigable land are not reported
+# SIGPAC uses where plastic cannot be farming: water, roads, buildings, unproductive,
+# urban, censored, landscape features. Forest (FO) and scrub are NOT excluded: a new
+# clearing farmed under plastic on land still registered as forest is exactly the case.
+NON_FARMING_USES = {"AG", "CA", "ED", "IM", "ZU", "ZV", "EP"}
+
+# Check of the patches against the PNOA aerial orthophoto (IGN, 25 cm, CC BY 4.0). The
+# historical service keeps one layer per flight year; Huelva was flown in June 2019 and
+# June 2022, so each campaign is checked against the closest flight before it.
+PNOA_WMS = "https://www.ign.es/wms/pnoa-historico"
+PNOA_CURRENT_WMS = "https://www.ign.es/wms-inspire/pnoa-ma"
+VALIDATION_CHIP_M = 300    # minimum side of the square shown around each patch

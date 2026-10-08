@@ -1,0 +1,126 @@
+{
+ "site": "donana",
+ "name": "Doñana · Corona Forestal (Condado de Huelva)",
+ "wetland": "donana",
+ "campaign": 2024,
+ "window_months": [
+  1,
+  2,
+  3
+ ],
+ "dates": [
+  {
+   "date": "2024-01-11",
+   "coverage": 0.416,
+   "plastic_ha": 1743,
+   "scenes": [
+    "S2B_29SPB_20240111_0_L2A",
+    "S2B_29SPB_20240111_1_L2A"
+   ]
+  },
+  {
+   "date": "2024-01-21",
+   "coverage": 0.984,
+   "plastic_ha": 4474,
+   "scenes": [
+    "S2B_29SPB_20240121_0_L2A",
+    "S2B_29SQB_20240121_0_L2A"
+   ]
+  },
+  {
+   "date": "2024-01-31",
+   "coverage": 0.17,
+   "plastic_ha": 755,
+   "scenes": [
+    "S2B_29SPB_20240131_0_L2A",
+    "S2B_29SQB_20240131_0_L2A"
+   ]
+  },
+  {
+   "date": "2024-02-10",
+   "coverage": 0.17,
+   "plastic_ha": 723,
+   "scenes": [
+    "S2B_29SPB_20240210_0_L2A"
+   ]
+  },
+  {
+   "date": "2024-02-20",
+   "coverage": 0.997,
+   "plastic_ha": 979,
+   "scenes": [
+    "S2B_29SPB_20240220_0_L2A",
+    "S2B_29SQB_20240220_0_L2A"
+   ]
+  },
+  {
+   "date": "2024-03-01",
+   "coverage": 0.996,
+   "plastic_ha": 491,
+   "scenes": [
+    "S2B_29SPB_20240301_0_L2A",
+    "S2B_29SQB_20240301_0_L2A"
+   ]
+  },
+  {
+   "date": "2024-03-06",
+   "coverage": 0.917,
+   "plastic_ha": 414,
+   "scenes": [
+    "S2A_29SPB_20240306_0_L2A",
+    "S2A_29SQB_20240306_0_L2A"
+   ]
+  },
+  {
+   "date": "2024-03-11",
+   "coverage": 0.996,
+   "plastic_ha": 1174,
+   "scenes": [
+    "S2B_29SPB_20240311_0_L2A",
+    "S2B_29SQB_20240311_0_L2A"
+   ]
+  },
+  {
+   "date": "2024-03-16",
+   "coverage": 0.934,
+   "plastic_ha": 276,
+   "scenes": [
+    "S2A_29SPB_20240316_0_L2A",
+    "S2A_29SQB_20240316_0_L2A"
+   ]
+  }
+ ],
+ "plan_ha": 64428,
+ "irrigable_ha": 9503,
+ "plastic_in_plan_ha": 2731,
+ "plastic_in_irrigable_ha": 2311,
+ "funnel_ha": {
+  "not_irrigable": 393,
+  "away_from_edge": 236,
+  "farming_use": 203
+ },
+ "outside_ha": 135.5,
+ "outside_patches": 103,
+ "outside_declared_ha": 130.1,
+ "outside_adjacent_ha": 117.3,
+ "outside_by_admin_zone": {
+  "Zona C": 74.6,
+  "Zona A": 59.5,
+  "Zona B": 1.5
+ },
+ "sigpac_campaign": 2025,
+ "sources": {
+  "zoning": "https://www.juntadeandalucia.es/medioambiente/mapwms/REDIAM_zonificacion_plan_regadios_corona_forestal_donana",
+  "sigpac": "https://www.fega.gob.es/atom",
+  "sentinel2": "https://earth-search.aws.element84.com/v1"
+ },
+ "rules": {
+  "PLASTIC_RPGI_MIN": 10.0,
+  "PLASTIC_PMLI_MAX": 0.1,
+  "PLASTIC_BLUE_RED_MIN": 0.75,
+  "PLASTIC_MIN_DATES": 2,
+  "LEGAL_EDGE_M": 20,
+  "PATCH_MIN_HA": 0.5,
+  "IRRIGATION_RES_M": 10
+ }
+}

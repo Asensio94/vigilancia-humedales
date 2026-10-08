@@ -156,6 +156,32 @@ def mask(
                       f"permanente {r['permanent_ha']:.0f} ha, {r['dates_used']} fechas")
 
 
+@app.command()
+def irrigation(
+    site: str = typer.Option("donana", "--site", "-s", help="ámbito de regadío (por ahora: donana)"),
+    year: Optional[int] = typer.Option(None, help="campaña; por defecto la de este año si ya acabó la ventana"),
+    refresh_zoning: bool = typer.Option(False, help="vuelve a descargar la zonificación oficial"),
+    no_report: bool = typer.Option(False, help="solo genera el GeoJSON y el resumen"),
+):
+    """Regadío (plástico) detectado fuera del suelo agrícola regable. Una pasada por campaña."""
+    from . import irrigation as irr
+    from . import irrigation_report
+    if site not in irr.IRRIGATION_SITES:
+        raise typer.BadParameter(f"ámbito desconocido: {site}. Hay: {list(irr.IRRIGATION_SITES)}")
+    s = irr.IRRIGATION_SITES[site]
+    today = date.today()
+    if year is None:
+        year = today.year if today.month > max(s.months) else today.year - 1
+    console.rule(f"[bold]{s.name} · campaña {year}")
+    summary = irr.run(s, year, refresh_zoning=refresh_zoning, log=console.print)
+    console.print(f"[green]Plástico persistente en el ámbito: {summary['plastic_in_plan_ha']:,} ha, "
+                  f"en suelo regable {summary['plastic_in_irrigable_ha']:,} ha. "
+                  f"Fuera: {summary['outside_ha']:,} ha en {summary['outside_patches']} manchas "
+                  f"({summary['outside_declared_ha']:,} ha declaradas en SIGPAC como invernadero o regadío).")
+    if not no_report:
+        console.print(f"Informe: {irrigation_report.write(s)}")
+
+
 @app.command("report")
 def report_cmd(site: Optional[list[str]] = typer.Option(None, "--site", "-s")):
     """Regenera el informe a partir de las series guardadas, sin descargar nada."""

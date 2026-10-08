@@ -1,0 +1,145 @@
+patch_id,ha,label,note
+donana-2023-168570-4127390,7.67,invernadero,arcos del túnel sin plástico (comprobado a 25 cm)
+donana-2023-165670-4133970,7.43,invernadero,
+donana-2023-186840-4118330,7.17,invernadero,
+donana-2023-172410-4133020,5.38,invernadero,
+donana-2023-176770-4127280,5.36,invernadero,arcos del túnel sin plástico (comprobado a 25 cm)
+donana-2023-169120-4127870,4.75,invernadero,arcos del túnel sin plástico (comprobado a 25 cm)
+donana-2023-165580-4126170,4.59,no_agricola,"franja de arena en el pinar, probablemente un cortafuegos (SIGPAC FO)"
+donana-2023-172240-4133140,4.2,invernadero,
+donana-2023-170980-4128330,4.19,invernadero,
+donana-2023-164200-4132980,4.11,invernadero,
+donana-2023-171040-4133530,3.81,invernadero,
+donana-2023-166850-4127790,3.71,cultivo,camellones sin estructura (comprobado a 25 cm)
+donana-2023-167000-4132310,3.55,invernadero,
+donana-2023-170450-4131890,3.47,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-163110-4126150,3.47,invernadero,
+donana-2023-170780-4128580,3.31,invernadero,
+donana-2023-170990-4130780,3.26,invernadero,
+donana-2023-170690-4131700,3.15,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-169650-4132050,3.12,invernadero,
+donana-2023-164700-4128180,3.08,invernadero,
+donana-2023-170990-4128060,3.06,invernadero,
+donana-2023-159860-4127830,3.05,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-181080-4127140,3.04,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-168360-4129520,3.03,invernadero,
+donana-2023-180390-4128560,2.87,invernadero,
+donana-2023-168980-4128490,2.83,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-170480-4129380,2.81,invernadero,
+donana-2023-170120-4130210,2.69,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-169720-4131290,2.66,invernadero,
+donana-2023-164940-4129340,2.53,invernadero,
+donana-2023-163460-4132530,2.49,invernadero,
+donana-2023-164060-4130570,2.47,invernadero,
+donana-2023-188060-4125960,2.47,invernadero,
+donana-2023-171720-4133540,2.33,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-167050-4128590,2.3,invernadero,
+donana-2023-167750-4132200,2.28,invernadero,
+donana-2023-169830-4130400,2.2,invernadero,
+donana-2023-162240-4126540,2.19,invernadero,
+donana-2023-162980-4126350,2.19,invernadero,
+donana-2023-179860-4129200,2.04,invernadero,
+donana-2023-170040-4133110,2.03,invernadero,
+donana-2023-168490-4126420,2.03,invernadero,
+donana-2023-162880-4125130,1.98,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-168330-4127500,1.97,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-165430-4134100,1.89,invernadero,
+donana-2023-170080-4130660,1.87,invernadero,
+donana-2023-166610-4128150,1.87,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-170400-4129140,1.86,invernadero,
+donana-2023-168550-4128910,1.81,invernadero,
+donana-2023-165530-4133790,1.8,invernadero,
+donana-2023-180000-4127480,1.76,invernadero,
+donana-2023-176320-4135620,1.75,invernadero,
+donana-2023-165550-4125230,1.72,no_agricola,"franja de arena en el pinar, probablemente un cortafuegos (SIGPAC FO)"
+donana-2023-167140-4131080,1.7,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-167240-4127300,1.69,invernadero,
+donana-2023-164220-4131870,1.68,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-163370-4128950,1.61,invernadero,
+donana-2023-166000-4129360,1.58,invernadero,
+donana-2023-169330-4128210,1.55,invernadero,
+donana-2023-170430-4127680,1.47,invernadero,
+donana-2023-186630-4127100,1.47,invernadero,
+donana-2023-162920-4126570,1.46,invernadero,
+donana-2023-165680-4134120,1.45,invernadero,
+donana-2023-179080-4127790,1.42,invernadero,
+donana-2023-170880-4131360,1.4,invernadero,
+donana-2023-170150-4127230,1.4,invernadero,
+donana-2023-186610-4118030,1.38,invernadero,
+donana-2023-182470-4130400,1.37,invernadero,
+donana-2023-167610-4128070,1.34,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-171460-4132390,1.33,invernadero,
+donana-2023-164510-4128260,1.33,invernadero,
+donana-2023-164380-4133110,1.28,invernadero,
+donana-2023-181740-4127250,1.27,invernadero,
+donana-2023-181110-4128460,1.24,invernadero,
+donana-2023-164480-4126500,1.24,invernadero,
+donana-2023-165700-4133830,1.2,invernadero,
+donana-2023-171300-4132030,1.19,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-177120-4127620,1.18,invernadero,
+donana-2023-163020-4129520,1.17,invernadero,
+donana-2023-169860-4130100,1.15,invernadero,
+donana-2023-174220-4134880,1.13,invernadero,
+donana-2023-171610-4133880,1.13,invernadero,
+donana-2023-164710-4126630,1.13,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-168230-4131320,1.1,invernadero,
+donana-2023-168250-4127610,1.1,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-171210-4131580,1.08,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-158930-4124630,1.07,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-168810-4128540,1.02,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-163060-4125110,1.0,invernadero,
+donana-2023-163130-4129620,0.99,invernadero,
+donana-2023-164840-4126620,0.99,invernadero,
+donana-2023-165580-4134120,0.96,invernadero,
+donana-2023-181000-4129230,0.96,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-160000-4127850,0.96,invernadero,
+donana-2023-162680-4126340,0.96,invernadero,
+donana-2023-166580-4131610,0.93,invernadero,
+donana-2023-169650-4128780,0.93,invernadero,
+donana-2023-162970-4126760,0.9,invernadero,
+donana-2023-167680-4128430,0.89,invernadero,
+donana-2023-167270-4128960,0.87,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-167360-4131590,0.86,invernadero,
+donana-2023-166800-4131150,0.85,invernadero,
+donana-2023-170090-4129780,0.85,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-164190-4130460,0.81,invernadero,
+donana-2023-163490-4133390,0.8,invernadero,
+donana-2023-165810-4132210,0.8,invernadero,
+donana-2023-168590-4130050,0.77,invernadero,
+donana-2023-180060-4129420,0.77,invernadero,
+donana-2023-168260-4126600,0.74,invernadero,
+donana-2023-168500-4129050,0.73,invernadero,
+donana-2023-168540-4127880,0.73,invernadero,
+donana-2023-166340-4127750,0.73,invernadero,
+donana-2023-175680-4132850,0.72,invernadero,
+donana-2023-165890-4127840,0.72,invernadero,
+donana-2023-170130-4130030,0.71,invernadero,
+donana-2023-170080-4132950,0.7,invernadero,
+donana-2023-168020-4128170,0.69,invernadero,
+donana-2023-170960-4131800,0.67,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-165830-4132080,0.66,invernadero,
+donana-2023-171010-4132280,0.65,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-169570-4126750,0.64,invernadero,
+donana-2023-186010-4126210,0.64,invernadero,
+donana-2023-167620-4131440,0.63,invernadero,
+donana-2023-170470-4131100,0.61,invernadero,
+donana-2023-176300-4136520,0.6,invernadero,
+donana-2023-167440-4131890,0.59,invernadero,
+donana-2023-163640-4133440,0.58,invernadero,
+donana-2023-162830-4126270,0.58,invernadero,
+donana-2023-167810-4132370,0.57,invernadero,
+donana-2023-168360-4129000,0.57,invernadero,
+donana-2023-158950-4124720,0.57,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-170930-4133330,0.56,invernadero,
+donana-2023-170760-4127910,0.56,invernadero,
+donana-2023-167100-4129650,0.55,invernadero,
+donana-2023-168440-4127970,0.55,invernadero,
+donana-2023-191820-4122980,0.55,invernadero,
+donana-2023-163690-4133280,0.54,invernadero,
+donana-2023-171930-4132730,0.54,invernadero,
+donana-2023-167990-4127260,0.54,cultivo,campo claro sin estructura visible; puede ser un túnel desmontado
+donana-2023-171600-4134020,0.53,invernadero,
+donana-2023-167640-4131500,0.52,invernadero,
+donana-2023-168170-4129630,0.52,invernadero,
+donana-2023-165330-4130080,0.51,invernadero,
+donana-2023-168620-4127830,0.51,invernadero,
