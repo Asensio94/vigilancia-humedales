@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from . import config, hydro, masks, metodologia
 from .alerts import Alert
 from .indices import Rasters
+from .logo import LOGO_SVG, favicon_link
 from .sites import SITES, Site, site_geometry
 
 
@@ -243,6 +244,7 @@ def overview_map(statuses: dict[str, tuple[Site, list[Alert]]]) -> str:
 # inlined first, so each page stays a single self-contained file. Only the accent and
 # this repo's own rules go after it.
 COMMON_CSS = (Path(__file__).with_name("common.css")).read_text(encoding="utf-8")
+FAVICON = favicon_link("#1d6a96", "#6bb3e0")
 FONTS_URL = ("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700"
              "&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600"
              "&family=IBM+Plex+Mono:wght@400;500&display=swap")
@@ -370,13 +372,14 @@ def render(results: dict[str, dict], run_date: date, pais: str = "ES") -> str:
     parts = [
         "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\">",
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
+        FAVICON,
         f"<title>Vigilancia de humedales · {nombre_pais} · {run_date.isoformat()}</title>",
         '<link rel="preconnect" href="https://fonts.googleapis.com">',
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
         f'<link rel="stylesheet" href="{html.escape(FONTS_URL)}">',
         f"<style>\n{COMMON_CSS}\n{ACCENT_CSS}\n{CSS}</style></head><body>",
         '<header class="site-header">',
-        "<h1>Vigilancia de <span>humedales</span></h1>",
+        f"<h1>{LOGO_SVG}Vigilancia de <span>humedales</span></h1>",
         f'<nav class="paises label" aria-label="Países">{paises}</nav>',
         f'<p class="lede">Mide cada pocos días con Sentinel-2 la superficie de agua, la turbidez y '
         f"la clorofila de {len(results)} humedales protegidos de {nombre_pais} y avisa cuando uno "

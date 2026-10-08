@@ -11,7 +11,7 @@ from shapely.ops import unary_union
 
 from . import config, legal, validation
 from .irrigation import IrrigationSite
-from .report import ACCENT_CSS, COMMON_CSS, CSS, FONTS_URL, _ha, site_footer
+from .report import ACCENT_CSS, COMMON_CSS, CSS, FAVICON, FONTS_URL, LOGO_SVG, _ha, site_footer
 
 USE_NAMES = {"IV": "invernadero / bajo plástico", "TA": "tierra arable", "FO": "forestal",
              "FY": "frutales", "CI": "cítricos", "PR": "pasto arbustivo", "PA": "pasto con arbolado",
@@ -218,13 +218,14 @@ def render(site: IrrigationSite) -> str:
     return "".join([
         '<!doctype html><html lang="es"><head><meta charset="utf-8">',
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
+        FAVICON,
         f"<title>Regadío fuera del suelo regable · {html.escape(site.name)} · {s['campaign']}</title>",
         '<link rel="preconnect" href="https://fonts.googleapis.com">',
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
         f'<link rel="stylesheet" href="{html.escape(FONTS_URL)}">',
         f"<style>\n{COMMON_CSS}\n{ACCENT_CSS}\n{CSS}{CHIP_CSS}</style></head><body>",
         '<header class="site-header">',
-        "<h1>Regadío fuera del <span>suelo regable</span></h1>",
+        f"<h1>{LOGO_SVG}Regadío fuera del <span>suelo regable</span></h1>",
         '<nav class="paises label" aria-label="Páginas"><a href="index.html">España</a> · '
         '<a href="france.html">Francia</a> · <a aria-current="page">Regadío fuera del suelo regable '
         "en Doñana</a></nav>",
