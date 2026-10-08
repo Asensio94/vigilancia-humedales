@@ -162,6 +162,7 @@ def irrigation(
     year: Optional[int] = typer.Option(None, help="campaña; por defecto la de este año si ya acabó la ventana"),
     refresh_zoning: bool = typer.Option(False, help="vuelve a descargar la zonificación oficial"),
     no_report: bool = typer.Option(False, help="solo genera el GeoJSON y el resumen"),
+    report_only: bool = typer.Option(False, help="solo rehace la página con las campañas guardadas, sin descargar"),
 ):
     """Regadío (plástico) detectado fuera del suelo agrícola regable. Una pasada por campaña."""
     from . import irrigation as irr
@@ -169,6 +170,9 @@ def irrigation(
     if site not in irr.IRRIGATION_SITES:
         raise typer.BadParameter(f"ámbito desconocido: {site}. Hay: {list(irr.IRRIGATION_SITES)}")
     s = irr.IRRIGATION_SITES[site]
+    if report_only:
+        console.print(f"Informe: {irrigation_report.write(s)}")
+        return
     today = date.today()
     if year is None:
         year = today.year if today.month > max(s.months) else today.year - 1

@@ -16,6 +16,10 @@ on:
         description: "Volver a descargar la zonificación del plan"
         type: boolean
         default: false
+      report_only:
+        description: "Solo rehacer la página con las campañas ya guardadas"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -51,7 +55,19 @@ jobs:
         env:
           YEAR: ${{ inputs.year }}
           REFRESH: ${{ inputs.refresh_zoning }}
+          REPORT_ONLY: ${{ inputs.report_only }}
         run: |
+          # FEGA does not answer from GitHub's runners (connection timeout, while it answers
+          # from Spain). Without SIGPAC there is no new campaign, but the page can still be
+          # rebuilt from the campaigns already in data/irrigation.
+          if [ "$REPORT_ONLY" != "true" ] && ! curl -sf -o /dev/null --max-time 30 https://www.fega.gob.es/atom/; then
+            echo "::warning::FEGA no responde desde el runner: se rehace la página con las campañas guardadas. La nueva campaña hay que calcularla en local (python -m humedales.cli irrigation) y subir data/irrigation."
+            REPORT_ONLY=true
+          fi
+          if [ "$REPORT_ONLY" = "true" ]; then
+            python -m humedales.cli irrigation --site donana --report-only
+            exit 0
+          fi
           args=""
           [ -n "$YEAR" ] && args="$args --year $YEAR"
           [ "$REFRESH" = "true" ] && args="$args --refresh-zoning"
