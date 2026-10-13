@@ -218,7 +218,14 @@ def overview_map(statuses: dict[str, tuple[Site, list[Alert]]], lang: str = "es"
     El encuadre se calcula, no se fija: con un centro escrito a mano el mapa del
     informe francés abría sobre La Mancha.
     """
-    m = folium.Map(tiles="CartoDB positron")
+    # CARTO's basemaps now ask for an API key and serve an "API KEY REQUIRED" tile
+    # without one. Same keyless layers as the irrigation map: OpenStreetMap, and
+    # Esri imagery to see the wetland itself.
+    m = folium.Map(tiles=None)
+    folium.TileLayer("OpenStreetMap", name=t(lang, "layer_map")).add_to(m)
+    folium.TileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri World Imagery", name=t(lang, "layer_satellite"), show=False).add_to(m)
     caja = None
     for slug, (site, alerts) in statuses.items():
         geom = site_geometry(site)
@@ -237,7 +244,9 @@ def overview_map(statuses: dict[str, tuple[Site, list[Alert]]], lang: str = "es"
             style_function=lambda _f, c=color: {"color": c, "fillColor": c, "weight": 1.5,
                                                 "fillOpacity": 0.35},
             tooltip=t(lang, "map_tooltip", name=site_text(site, lang)[0], n=len(alerts)),
+            control=False,   # the selector only switches the base layer
         ).add_to(m)
+    folium.LayerControl(collapsed=False).add_to(m)
     if caja:
         m.fit_bounds([[caja[1], caja[0]], [caja[3], caja[2]]])
     return m.get_root().render()

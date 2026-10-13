@@ -91,6 +91,8 @@ UI: dict[str, dict[str, str]] = {
         "map": "Mapa",
         "map_title": "Mapa de los humedales",
         "map_tooltip": "{name}: {n} alerta(s)",
+        "layer_map": "Mapa",
+        "layer_satellite": "Satélite",
         # Charts and satellite image.
         "den_floodable": "Área inundable",
         "den_site": "Sitio Natura 2000",
@@ -177,6 +179,8 @@ UI: dict[str, dict[str, str]] = {
         "map": "Carte",
         "map_title": "Carte des zones humides",
         "map_tooltip": "{name} : {n} alerte(s)",
+        "layer_map": "Carte",
+        "layer_satellite": "Satellite",
         "den_floodable": "Zone inondable",
         "den_site": "Site Natura 2000",
         "ch_water": "eau libre",
