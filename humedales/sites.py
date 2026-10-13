@@ -94,6 +94,41 @@ SITES: dict[str, Site] = {
 }
 
 
+# Name, region and notes as the reader of each report sees them. The Site keeps the
+# Spanish text (console, README); a site with no entry here is shown as it is.
+SITE_TEXT: dict[str, dict[str, tuple[str, str, str]]] = {
+    "fr": {
+        "camargue": ("Camargue", "Provence-Alpes-Côte d'Azur",
+                     "Delta du Rhône. Étangs saumâtres et marais gérés par des vannes ; rizières "
+                     "et la plus grande colonie de flamants de Méditerranée occidentale."),
+        "marais-poitevin": ("Marais poitevin", "Nouvelle-Aquitaine / Pays de la Loire",
+                            "Marais drainé et compartimenté en canaux, le deuxième de France. "
+                            "Conflit ouvert autour des réserves d'irrigation et du niveau de la "
+                            "nappe."),
+        "brenne": ("Grande Brenne", "Centre-Val de Loire",
+                   "Près de 2 000 étangs piscicoles médiévaux. Ils sont vidangés par rotation : "
+                   "la surface en eau cumulée baisse donc par la gestion, et pas seulement par "
+                   "la sécheresse."),
+        "lac-du-der": ("Lac du Der-Chantecoq", "Grand Est",
+                       "Réservoir écrêteur de la Marne : rempli en hiver, vidé en été pour "
+                       "soutenir l'étiage de la Seine. Principale halte de la grue cendrée en "
+                       "Europe de l'Ouest, l'autre bout de l'axe de Gallocanta."),
+        "grand-lieu": ("Lac de Grand-Lieu", "Pays de la Loire",
+                       "Lac naturel peu profond, presque sans cuvette : son étendue d'hiver "
+                       "triple celle d'été, et cette oscillation est son état normal."),
+        "dombes": ("La Dombes", "Auvergne-Rhône-Alpes",
+                   "Un millier d'étangs en rotation d'évolage et d'assec. Le polygone couvre "
+                   "toute une petite région, les étangs dispersés à l'intérieur : la zone "
+                   "inondable mesurée y est plus nécessaire que nulle part ailleurs."),
+    },
+}
+
+
+def site_text(site: Site, lang: str) -> tuple[str, str, str]:
+    """(name, region, notes) of a site in `lang`."""
+    return SITE_TEXT.get(lang, {}).get(site.slug, (site.name, site.region, site.notes))
+
+
 def natura_geometry(sitecode: str) -> dict:
     params = {
         "where": f"SITECODE='{sitecode}'",

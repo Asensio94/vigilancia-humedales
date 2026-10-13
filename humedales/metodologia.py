@@ -175,6 +175,13 @@ def _datos(results: dict | None, pais: str) -> dict:
     n_fechas, n_ok = _recuento(results)
     m = masks.load(denom.slug) or {}
     return {
+        # Raw values, for the prose of any language.
+        "n_fechas": n_fechas,
+        "n_ok": n_ok,
+        "mask": m,
+        "grande_site": grande,
+        "denom_site": denom,
+        # Spanish phrases built from them.
         "crs": grande.crs,
         "grande": grande.name,
         "grande_res": config.RESOLUTION_BY_SITE.get(grande.slug, config.RESOLUTION_M),
@@ -386,10 +393,6 @@ def _glosario(pais: str = "ES") -> list[tuple[str, str, str]]:
     return GLOSARIO_COMUN + del_pais + GLOSARIO_MEDIDA + campo
 
 
-# Prosa por idioma, apartados y glosario. Traducir el informe es escribir un
-# `_bloques_fr` y un `_glosario_fr` con los mismos apartados y siglas leyendo el mismo
-# `_datos`: la prosa está separada del cálculo a propósito.
-PROSA = {"es": (_bloques, _glosario)}
 
 
 def _num(v: float) -> str:
@@ -495,30 +498,57 @@ VALIDACION = {
 }
 
 
+# Prose by language. Translating the report means writing the same blocks, steps,
+# parameters and glossary reading the same `_datos`: prose is kept apart from the
+# figures on purpose. The French one lives in metodologia_fr.py.
+PROSA = {
+    "es": {
+        "bloques": _bloques,
+        "glosario": _glosario,
+        "pasos": _pasos,
+        "parametros": _parametros,
+        "validacion": VALIDACION,
+        "titulos": {"seccion": "Cómo se calcula", "parametros": "Parámetros",
+                    "validacion": "Validación", "detalle": "En detalle:",
+                    "glosario": "Glosario de siglas"},
+    },
+}
+
+
+def _prosa(idioma: str) -> dict:
+    # Imported here, not at the top: metodologia_fr reuses this module's helpers and
+    # data, so importing it at load time would be circular.
+    if idioma == "fr":
+        from .metodologia_fr import PROSA_FR
+        return PROSA_FR
+    return PROSA[idioma]
+
+
 def section(results: dict | None = None, pais: str = "ES", idioma: str = "es") -> str:
-    """The «Cómo se calcula» section, ready to insert in the report.
+    """The method section, ready to insert in the report, in the report's language.
 
     Steps and parameters first, then validation, then the detailed blocks (which end
     with the limits) and the glossary. The `metodologia` anchor is kept because the
     README and outside links point to it.
     """
-    prosa, glosario = PROSA[idioma]
-    bloques = [b for b in prosa(results, pais) if b[0]]
+    prosa = _prosa(idioma)
+    tit = prosa["titulos"]
+    bloques = [b for b in prosa["bloques"](results, pais) if b[0]]
     out = ['<section class="method" id="metodologia">',
-           "<h2>Cómo se calcula</h2>",
-           _pasos(results, pais),
-           '<h3 id="parametros">Parámetros</h3>',
-           _parametros(pais),
-           '<h3 id="validacion">Validación</h3>',
-           VALIDACION[pais],
-           '<p class="indice">En detalle: '
+           f"<h2>{tit['seccion']}</h2>",
+           prosa["pasos"](results, pais),
+           f'<h3 id="parametros">{tit["parametros"]}</h3>',
+           prosa["parametros"](pais),
+           f'<h3 id="validacion">{tit["validacion"]}</h3>',
+           prosa["validacion"][pais],
+           f'<p class="indice">{tit["detalle"]} '
            + " · ".join(f'<a href="#{ancla}">{titulo}</a>' for ancla, titulo, _ in bloques)
-           + ' · <a href="#glosario">Glosario de siglas</a></p>']
+           + f' · <a href="#glosario">{tit["glosario"]}</a></p>']
     for ancla, titulo, cuerpo in bloques:
         out.append(f'<h3 id="{ancla}">{titulo}</h3>{cuerpo}')
 
-    out.append('<h3 id="glosario">Glosario de siglas</h3><dl class="glosario">')
-    for sigla, expansion, texto in glosario(pais):
+    out.append(f'<h3 id="glosario">{tit["glosario"]}</h3><dl class="glosario">')
+    for sigla, expansion, texto in prosa["glosario"](pais):
         exp = "" if expansion == "—" else f" <i>{expansion}</i>"
         out.append(f"<dt>{sigla}{exp}</dt><dd>{texto}</dd>")
     out.append("</dl>")
