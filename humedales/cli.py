@@ -12,7 +12,7 @@ from rich.table import Table
 from . import alerts as alerts_mod
 from . import backfill as backfill_mod
 from . import masks as masks_mod
-from . import report, stac, store
+from . import report, signals, stac, store
 from .indices import observe
 from .sites import SITES, site_geometry
 
@@ -101,6 +101,13 @@ def run(
         for pais, html_path, json_path in report.write(results, today):
             console.print(f"\n{pais} · Informe: {html_path}"
                           f"\n{pais} · Alertas: {json_path}")
+        # The signals for estado-iba are a by-product: if they fail (the Natura layer did
+        # not download), the series must still be saved and the report published. The
+        # workflow then leaves yesterday's signals.json in place.
+        try:
+            console.print(f"Señales: {signals.write(today)}")
+        except Exception as exc:  # noqa: BLE001
+            console.print(f"[yellow]Sin signals.json hoy: {type(exc).__name__}: {exc}")
 
 
 @app.command()
