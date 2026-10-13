@@ -16,11 +16,12 @@ import pandas as pd
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-from . import config, hydro, masks, metodologia
+from . import config, hydro, i18n, masks, metodologia
 from .alerts import Alert
 from .indices import Rasters
 from .logo import LOGO_SVG, favicon_link
-from .sites import SITES, Site, site_geometry
+from .i18n import t
+from .sites import SITES, Site, site_geometry, site_text
 
 
 def _png_b64(fig) -> str:
@@ -47,27 +48,25 @@ def _fmt(v, nd=3) -> str:
     return "–" if v is None or pd.isna(v) else f"{v:.{nd}f}"
 
 
-def _ha(v) -> str:
-    """Hectáreas con separador de miles español: 7.686, no 7,686.
+def _ha(v, lang: str = "es") -> str:
+    """Hectáreas con el separador de miles del idioma: 7.686 en español, 7 686 en francés.
 
-    El informe está en español y con la coma inglesa "7,686 ha" se lee como siete
-    hectáreas y media. Los índices espectrales sí se dejan con punto decimal, que es
-    como se citan en la literatura.
+    Con la coma inglesa "7,686 ha" se lee como siete hectáreas y media. Los índices
+    espectrales sí se dejan con punto decimal, que es como se citan en la literatura.
     """
-    return f"{v:,.0f}".replace(",", ".")
+    return i18n.n(v, lang)
 
 
-# Los tipos de alerta viajan como identificadores en el JSON; en pantalla se leen.
-KIND_LABELS = {"desecacion": "desecación", "descenso_brusco": "descenso brusco",
-               "eutrofizacion": "eutrofización", "turbidez": "turbidez"}
-
-
-def _kind(kind: str) -> str:
-    return KIND_LABELS.get(kind, kind.replace("_", " "))
+def _kind(kind: str, lang: str = "es") -> str:
+    """Los tipos de alerta viajan como identificadores en el JSON; en pantalla se leen."""
+    key = f"kind_{kind}"
+    return t(lang, key) if key in i18n.UI["es"] else kind.replace("_", " ")
 
 
 def denominator(site: Site, df: pd.DataFrame) -> tuple[float, str]:
-    """Superficie con la que se compara la lámina medida.
+    """Superficie con la que se compara la lámina medida: (hectáreas, "floodable" | "site").
+
+    La etiqueta es una clave, no un texto: se traduce al pintarla.
 
     El polígono Natura 2000 es un límite administrativo: en Doñana incluye pinares,
     arenas y cultivos, así que "fracción del sitio" no dice nada hidrológico. Cuando
@@ -76,10 +75,10 @@ def denominator(site: Site, df: pd.DataFrame) -> tuple[float, str]:
     """
     floodable = masks.floodable_ha(site.slug)
     if floodable:
-        return float(floodable), "área inundable"
+        return float(floodable), "floodable"
     if not df.empty and df["site_ha"].notna().any():
-        return float(df["site_ha"].dropna().iloc[-1]), "sitio Natura 2000"
-    return 0.0, "sitio Natura 2000"
+        return float(df["site_ha"].dropna().iloc[-1]), "site"
+    return 0.0, "site"
 
 
 def hydro_series(site: Site, df: pd.DataFrame) -> tuple[pd.Series | None, pd.Series | None]:
@@ -109,6 +108,8 @@ def hydro_series(site: Site, df: pd.DataFrame) -> tuple[pd.Series | None, pd.Ser
 
 
 def series_chart(site: Site, df: pd.DataFrame) -> str:
+    """Las gráficas van en el idioma del informe del país del humedal."""
+    lang = i18n.lang_of(site.country)
     ok = df[df["quality"] == "ok"].copy()
     other = df[df["quality"] != "ok"]
     ok["date"] = pd.to_datetime(ok["date"])
@@ -119,37 +120,37 @@ def series_chart(site: Site, df: pd.DataFrame) -> str:
     heights = [2.2, 1.1, 1.1] + ([1.5] if with_hydro else [])
     fig, axes = plt.subplots(n, 1, figsize=(10, 7.5 if n == 3 else 9.6), sharex=True,
                              gridspec_kw={"height_ratios": heights})
-    axes[0].plot(ok["date"], ok["water_ha"], "o-", color="#1f77b4", ms=3, lw=1, label="agua libre")
+    axes[0].plot(ok["date"], ok["water_ha"], "o-", color="#1f77b4", ms=3, lw=1, label=t(lang, "ch_water"))
     if "wet_veg_ha" in ok:
         axes[0].plot(ok["date"], ok["wet_veg_ha"], "s--", color="#17becf", ms=3, lw=1,
-                     label="vegetación inundada")
+                     label=t(lang, "ch_wet_veg"))
     if not other.empty:
         axes[0].scatter(pd.to_datetime(other["date"]), other["water_ha"], marker="x",
-                        color="grey", s=18, label="descartadas (nubes, neblina, incoherentes)")
+                        color="grey", s=18, label=t(lang, "ch_discarded"))
     axes[0].legend(loc="upper left", fontsize=8)
-    axes[0].set_ylabel("Agua (ha)")
-    axes[0].set_title(f"{site.name}: superficie de agua. {den_label[0].upper()}{den_label[1:]}: "
-                      f"{_ha(den)} ha", fontsize=10)
+    axes[0].set_ylabel(t(lang, "ch_water_axis"))
+    axes[0].set_title(t(lang, "ch_title", name=site_text(site, lang)[0],
+                        den=t(lang, f"den_{den_label}"), ha=_ha(den, lang)), fontsize=10)
     axes[1].plot(ok["date"], ok["ndci_mean"], "o-", color="#2ca02c", ms=3, lw=1)
     axes[1].axhline(config.NDCI_BLOOM, color="red", ls="--", lw=0.8)
-    axes[1].set_ylabel("NDCI medio\n(clorofila)")
+    axes[1].set_ylabel(t(lang, "ch_ndci"))
     axes[2].plot(ok["date"], ok["ndti_mean"], "o-", color="#8c564b", ms=3, lw=1)
-    axes[2].set_ylabel("NDTI medio\n(turbidez)")
+    axes[2].set_ylabel(t(lang, "ch_ndti"))
     if with_hydro:
         ax, ax2 = axes[3], None
         if rain is not None:
             # La lluvia va detrás y a la derecha: es el forzamiento, no la medida.
             ax2 = ax.twinx()
             ax2.bar(rain.index, rain.values, width=22, color="#aecfe8", zorder=1,
-                    label="lluvia mensual")
-            ax2.set_ylabel("Lluvia\n(mm/mes)")
+                    label=t(lang, "ch_rain"))
+            ax2.set_ylabel(t(lang, "ch_rain_axis"))
             ax2.set_ylim(bottom=0)
             ax2.set_zorder(ax.get_zorder() - 1)
             ax.patch.set_visible(False)
         if level is not None:
             ax.plot(level.index, level.values, "-", color="#14496f", lw=1.2, zorder=3,
-                    label="calado medido en la marisma")
-            ax.set_ylabel("Calado (m)")
+                    label=t(lang, "ch_level"))
+            ax.set_ylabel(t(lang, "ch_level_axis"))
         else:
             ax.set_yticks([])
         # Una sola leyenda con las dos series: viven en ejes distintos, así que hay que
@@ -181,11 +182,13 @@ def cached_image(slug: str) -> str | None:
 
 
 def latest_image(site: Site, when: date, r: Rasters) -> str:
+    lang = i18n.lang_of(site.country)
     fig, axes = plt.subplots(1, 2, figsize=(11, 5.2))
     rgb = r.rgb.copy()
     rgb[~r.inside] = rgb[~r.inside] * 0.35 + 0.65  # atenúa el exterior del humedal
     axes[0].imshow(rgb)
-    axes[0].set_title(f"{site.name}, color natural, {when.isoformat()}", fontsize=10)
+    axes[0].set_title(t(lang, "img_rgb", name=site_text(site, lang)[0], date=when.isoformat()),
+                      fontsize=10)
     overlay = np.zeros(r.water.shape + (4,), dtype=float)
     overlay[r.inside] = (0.9, 0.9, 0.9, 0.35)
     overlay[r.wet_veg] = (0.2, 0.75, 0.75, 0.8)
@@ -196,7 +199,7 @@ def latest_image(site: Site, when: date, r: Rasters) -> str:
     overlay[bloom] = (0.1, 0.8, 0.1, 0.95)
     axes[1].imshow(rgb * 0.4 + 0.3)
     axes[1].imshow(overlay)
-    axes[1].set_title("Agua libre (azul), veg. inundada (cian), NDCI alto (verde), nubes (blanco)", fontsize=10)
+    axes[1].set_title(t(lang, "img_overlay"), fontsize=10)
     for ax in axes:
         ax.set_xticks([])
         ax.set_yticks([])
@@ -209,7 +212,7 @@ def latest_image(site: Site, when: date, r: Rasters) -> str:
     return b64
 
 
-def overview_map(statuses: dict[str, tuple[Site, list[Alert]]]) -> str:
+def overview_map(statuses: dict[str, tuple[Site, list[Alert]]], lang: str = "es") -> str:
     """Mapa de situación, encuadrado sobre los humedales que se pintan.
 
     El encuadre se calcula, no se fija: con un centro escrito a mano el mapa del
@@ -233,7 +236,7 @@ def overview_map(statuses: dict[str, tuple[Site, list[Alert]]]) -> str:
             geom.__geo_interface__,
             style_function=lambda _f, c=color: {"color": c, "fillColor": c, "weight": 1.5,
                                                 "fillOpacity": 0.35},
-            tooltip=f"{site.name}: {len(alerts)} alerta(s)",
+            tooltip=t(lang, "map_tooltip", name=site_text(site, lang)[0], n=len(alerts)),
         ).add_to(m)
     if caja:
         m.fit_bounds([[caja[1], caja[0]], [caja[3], caja[2]]])
@@ -287,7 +290,8 @@ main th{font:600 14px/1.3 var(--font-title);text-transform:uppercase;letter-spac
 # Un informe por país, no uno con los doce humedales dentro. No es solo peso: la
 # hidrología, las fuentes de contexto y el lector de cada uno son distintos, y una
 # tabla resumen que mezcla Doñana con la Camarga no se lee mejor por ser más larga.
-PAISES = {"ES": ("España", "index.html"), "FR": ("Francia", "france.html")}
+# El nombre de cada país se lee en el idioma de la página que lo enlaza (i18n).
+PAISES = {"ES": "index.html", "FR": "france.html"}
 
 
 # Common footer of the sibling projects (style guide, section 3). This project's own
@@ -310,39 +314,37 @@ OWN_SIBLING = "Vigilancia de humedales"
 def site_footer(pais: str, fuentes: list[str] | None = None) -> str:
     """Sources and licences of this project, then the shared principle and siblings. A page
     with sources of its own (the irrigation one) passes them instead of the wetland ones."""
+    lang = i18n.lang_of(pais)
     if fuentes is not None:
-        return _footer(fuentes)
-    fuentes = [
-        "Imágenes: Copernicus Sentinel-2 L2A, servidas por Earth Search (Element 84, AWS).",
-        "Contornos de los humedales: red Natura 2000 (Agencia Europea de Medio Ambiente).",
-    ]
+        return _footer(fuentes, lang)
+    fuentes = [t(lang, "src_images"), t(lang, "src_natura")]
     if pais == "FR":
-        fuentes.append("Línea de costa para recortar el mar: © colaboradores de "
-                       "OpenStreetMap (ODbL).")
+        fuentes.append(t(lang, "src_coast"))
     if any(s.country == pais and hydro.has_context(s.slug) for s in SITES.values()):
-        fuentes.append(f"Calado y lluvia medidos en el suelo: {html.escape(hydro.SOURCE)}.")
-    fuentes.append('Código con licencia MIT en '
-                   '<a href="https://github.com/Asensio94/vigilancia-humedales">'
-                   'github.com/Asensio94/vigilancia-humedales</a>.')
-    return _footer(fuentes)
+        fuentes.append(t(lang, "src_hydro", source=html.escape(hydro.SOURCE)))
+    fuentes.append(t(lang, "src_code",
+                     link='<a href="https://github.com/Asensio94/vigilancia-humedales">'
+                          'github.com/Asensio94/vigilancia-humedales</a>'))
+    return _footer(fuentes, lang)
 
 
-def _footer(fuentes: list[str]) -> str:
+def _footer(fuentes: list[str], lang: str = "es") -> str:
     items = "\n".join(
         f'    <li aria-current="page"><a href="{url}">{name}</a></li>' if name == OWN_SIBLING
         else f'    <li><a href="{url}">{name}</a></li>'
         for url, name in SIBLINGS)
     return (
         '<footer class="site-footer">\n'
-        '  <p class="principle">Datos públicos, reglas a la vista y cada cifra enlazada a su '
-        'fuente. Indicios, no veredictos.</p>\n'
+        f'  <p class="principle">{t(lang, "principle")}</p>\n'
         + "".join(f"  <p>{f}</p>\n" for f in fuentes)
-        + '  <nav aria-label="Proyectos hermanos"><ul class="siblings">\n'
+        # The sibling projects keep their Spanish names: they are proper names.
+        + f'  <nav aria-label="{t(lang, "siblings")}"><ul class="siblings"'
+        + ("" if lang == "es" else ' lang="es"') + ">\n"
         + items
         + "\n  </ul></nav>\n</footer>")
 
 
-def header_figures(results: dict[str, dict]) -> str:
+def header_figures(results: dict[str, dict], lang: str = "es") -> str:
     """Key figures of the page: wetlands, active alerts, last valid date, valid dates."""
     n_alertas = sum(len(r["alerts"]) for r in results.values())
     con_alerta = sum(1 for r in results.values() if r["alerts"])
@@ -350,11 +352,11 @@ def header_figures(results: dict[str, dict]) -> str:
     n_ok = sum(int((r["series"]["quality"] == "ok").sum()) for r in results.values()
                if r["series"] is not None and not r["series"].empty)
     cifras = [
-        (str(len(results)), "humedales"),
-        (str(n_alertas), "alertas activas"),
-        (str(con_alerta), "humedales con alerta"),
-        (max(fechas) if fechas else "–", "última fecha válida"),
-        (_ha(n_ok), "fechas válidas en la serie"),
+        (str(len(results)), t(lang, "fig_sites")),
+        (str(n_alertas), t(lang, "fig_alerts")),
+        (str(con_alerta), t(lang, "fig_sites_alert")),
+        (max(fechas) if fechas else "–", t(lang, "fig_last")),
+        (_ha(n_ok, lang), t(lang, "fig_valid")),
     ]
     return ('<div class="figures">'
             + "".join(f"<div><b>{v}</b><span>{k}</span></div>" for v, k in cifras)
@@ -362,111 +364,115 @@ def header_figures(results: dict[str, dict]) -> str:
 
 
 def render(results: dict[str, dict], run_date: date, pais: str = "ES") -> str:
-    """results[slug] = {site, series, alerts, latest, chart_b64, image_b64}"""
-    nombre_pais = PAISES[pais][0]
+    """results[slug] = {site, series, alerts, latest, chart_b64, image_b64}
+
+    La página entera va en el idioma del país: la de España en español, la de Francia
+    en francés.
+    """
+    lang = i18n.lang_of(pais)
+    nombre_pais = t(lang, f"country_{pais}")
     paises = " · ".join(
-        f'<a aria-current="page">{nombre}</a>' if codigo == pais
-        else f'<a href="{fichero}">{nombre}</a>'
-        for codigo, (nombre, fichero) in PAISES.items())
+        f'<a aria-current="page">{t(lang, f"country_{codigo}")}</a>' if codigo == pais
+        else f'<a href="{fichero}">{t(lang, f"country_{codigo}")}</a>'
+        for codigo, fichero in PAISES.items())
     if pais == "ES":
-        paises += ' · <a href="regadio.html">Regadío fuera del suelo regable en Doñana</a>'
+        paises += f' · <a href="regadio.html">{t(lang, "irrigation_link")}</a>'
+    donde = t(lang, f"in_country_{pais}")
     parts = [
-        "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\">",
+        f'<!doctype html><html lang="{lang}"><head><meta charset="utf-8">',
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
         FAVICON,
-        f"<title>Vigilancia de humedales · {nombre_pais} · {run_date.isoformat()}</title>",
+        f"<title>{t(lang, 'project')} · {nombre_pais} · {run_date.isoformat()}</title>",
         '<link rel="preconnect" href="https://fonts.googleapis.com">',
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
         f'<link rel="stylesheet" href="{html.escape(FONTS_URL)}">',
         f"<style>\n{COMMON_CSS}\n{ACCENT_CSS}\n{CSS}</style></head><body>",
         '<header class="site-header">',
-        f"<h1>{LOGO_SVG}Vigilancia de <span>humedales</span></h1>",
-        f'<nav class="paises label" aria-label="Países">{paises}</nav>',
-        f'<p class="lede">Mide cada pocos días con Sentinel-2 la superficie de agua, la turbidez y '
-        f"la clorofila de {len(results)} humedales protegidos de {nombre_pais} y avisa cuando uno "
-        "se sale de lo que suele dar en la misma época del año.</p>",
-        header_figures(results),
-        f'<p class="note">Informe generado el {run_date.isoformat()}. Las alertas comparan cada '
-        "humedal consigo mismo en la misma época del año. Todo lo demás —qué mide cada índice, qué "
-        "fechas se descartan, cómo se decide una alerta y qué significa cada sigla— está en "
-        "<a href=\"#metodologia\">Cómo se calcula</a>, al final.</p>",
+        f"<h1>{LOGO_SVG}{t(lang, 'h1')}</h1>",
+        f'<nav class="paises label" aria-label="{t(lang, "countries")}">{paises}</nav>',
+        f'<p class="lede">{t(lang, "lede", n=len(results), where=donde)}</p>',
+        header_figures(results, lang),
+        f'<p class="note">{t(lang, "note", date=run_date.isoformat())}</p>',
         "</header>",
         "<main>",
     ]
 
-    parts.append('<h2>Resumen</h2><div class="tabla"><table><tr>'
-                 "<th>Humedal</th><th>Última fecha válida</th>"
-                 "<th>Agua (ha)</th><th>NDCI</th><th>NDTI</th><th>Alertas</th></tr>")
+    parts.append(f'<h2>{t(lang, "summary")}</h2><div class="tabla"><table><tr>'
+                 f'<th>{t(lang, "th_site")}</th><th>{t(lang, "th_last")}</th>'
+                 f'<th>{t(lang, "th_water")}</th><th>NDCI</th><th>NDTI</th>'
+                 f'<th>{t(lang, "th_alerts")}</th></tr>')
     for slug, res in results.items():
         site, latest, alerts = res["site"], res["latest"], res["alerts"]
+        nombre = html.escape(site_text(site, lang)[0])
         if latest is None:
-            parts.append(f"<tr><td>{html.escape(site.name)}</td>"
-                         "<td colspan=5>sin observaciones válidas</td></tr>")
+            parts.append(f"<tr><td>{nombre}</td>"
+                         f'<td colspan=5>{t(lang, "no_valid_row")}</td></tr>')
             continue
         parts.append(
-            f"<tr><td>{html.escape(site.name)}</td><td>{latest['date']}</td>"
-            f"<td>{_ha(latest['water_ha'])}</td><td>{_fmt(latest['ndci_mean'])}</td>"
+            f"<tr><td>{nombre}</td><td>{latest['date']}</td>"
+            f"<td>{_ha(latest['water_ha'], lang)}</td><td>{_fmt(latest['ndci_mean'])}</td>"
             f"<td>{_fmt(latest['ndti_mean'])}</td>"
-            f"<td>{', '.join(_kind(a.kind) for a in alerts) or 'ninguna'}</td></tr>")
+            f"<td>{', '.join(_kind(a.kind, lang) for a in alerts) or t(lang, 'none')}</td></tr>")
     parts.append("</table></div>")
 
     for slug, res in results.items():
         site, df, alerts, latest = res["site"], res["series"], res["alerts"], res["latest"]
-        parts.append(f"<h2>{html.escape(site.name)} <small>({site.region} · Natura 2000 "
+        nombre, region, notas = (html.escape(x) for x in site_text(site, lang))
+        parts.append(f"<h2>{nombre} <small>({region} · Natura 2000 "
                      f"{', '.join(site.natura_codes)})</small></h2>")
-        parts.append(f"<p><small>{html.escape(site.notes)}</small></p>")
+        parts.append(f"<p><small>{notas}</small></p>")
         if latest is None:
-            parts.append("<p>Sin observaciones válidas en el periodo.</p>")
+            parts.append(f'<p>{t(lang, "no_valid_period")}</p>')
             continue
         n_ok = int((df["quality"] == "ok").sum())
         den, den_label = denominator(site, df)
         frac = latest["water_ha"] / den if den else float("nan")
+        pct = "–" if pd.isna(frac) else i18n.p(frac, lang)
         parts.append(
             '<div class="kpi">'
-            f"<div><small>Última fecha válida</small><b>{latest['date']}</b></div>"
-            f"<div><small>Agua</small><b>{_ha(latest['water_ha'])} ha</b>"
-            f"<small>{100 * frac:.0f} % del {den_label}</small></div>"
-            f"<div><small>NDCI medio</small><b>{_fmt(latest['ndci_mean'])}</b></div>"
-            f"<div><small>NDTI medio</small><b>{_fmt(latest['ndti_mean'])}</b></div>"
-            f"<div><small>Nubes en el sitio</small><b>{100 * latest['cloud_frac']:.0f} %</b></div>"
-            f"<div><small>Observaciones válidas</small><b>{n_ok}</b><small>de {len(df)} fechas</small></div>"
+            f'<div><small>{t(lang, "kpi_last")}</small><b>{latest["date"]}</b></div>'
+            f'<div><small>{t(lang, "kpi_water")}</small><b>{_ha(latest["water_ha"], lang)} ha</b>'
+            f'<small>{t(lang, f"pct_of_{den_label}", pct=pct)}</small></div>'
+            f'<div><small>{t(lang, "kpi_ndci")}</small><b>{_fmt(latest["ndci_mean"])}</b></div>'
+            f'<div><small>{t(lang, "kpi_ndti")}</small><b>{_fmt(latest["ndti_mean"])}</b></div>'
+            f'<div><small>{t(lang, "kpi_clouds")}</small>'
+            f'<b>{i18n.p(latest["cloud_frac"], lang)}</b></div>'
+            f'<div><small>{t(lang, "kpi_valid")}</small><b>{n_ok}</b>'
+            f'<small>{t(lang, "kpi_of_dates", n=len(df))}</small></div>'
             "</div>")
         if alerts:
             for a in alerts:
-                parts.append(f'<div class="alerta {a.severity}"><b>{_kind(a.kind).upper()}'
-                             f' · {a.severity}</b><br>{html.escape(a.message)}</div>')
+                parts.append(f'<div class="alerta {a.severity}"><b>{_kind(a.kind, lang).upper()}'
+                             f' · {t(lang, f"sev_{a.severity}")}</b><br>'
+                             f"{html.escape(a.text(lang))}</div>")
         else:
-            parts.append('<div class="ok">Sin alertas: valores dentro del rango de referencia.</div>')
+            parts.append(f'<div class="ok">{t(lang, "no_alerts")}</div>')
         if res.get("chart_b64"):
             parts.append(f'<p><img src="data:image/png;base64,{res["chart_b64"]}" '
-                         f'alt="Series de agua, NDCI y NDTI de {html.escape(site.name)}"></p>')
+                         f'alt="{t(lang, "alt_chart", name=nombre)}"></p>')
             notes = []
             m = masks.load(slug)
             if m:
-                notes.append(
-                    f"Área inundable {_ha(m['floodable_ha'])} ha de las {_ha(m['site_ha'])} ha del "
-                    f"sitio Natura 2000, de las cuales {_ha(m['permanent_ha'])} ha con agua casi "
-                    f"siempre; medida acumulando {m['dates_used']} fechas de meses húmedos.")
+                notes.append(t(lang, "mask_note", floodable=_ha(m["floodable_ha"], lang),
+                               site=_ha(m["site_ha"], lang),
+                               permanent=_ha(m["permanent_ha"], lang), dates=m["dates_used"]))
             if hydro.has_context(slug):
-                notes.append(f"Calado y lluvia del panel inferior: {html.escape(hydro.SOURCE)}.")
+                notes.append(t(lang, "hydro_note", source=html.escape(hydro.SOURCE)))
                 if hydro.was_limited(slug):
-                    notes.append("La serie de campo se ha servido desde la copia local: el portal "
-                                 "agotó su límite de peticiones, así que puede no llegar a la última "
-                                 "fecha del satélite.")
+                    notes.append(t(lang, "hydro_limited"))
             if notes:
                 parts.append(f"<p><small>{' '.join(notes)}</small></p>")
         if res.get("image_b64"):
             parts.append(f'<p><img src="data:image/jpeg;base64,{res["image_b64"]}" '
-                         f'alt="Última imagen de {html.escape(site.name)}: color natural y '
-                         'agua detectada"></p>')
+                         f'alt="{t(lang, "alt_image", name=nombre)}"></p>')
 
-    parts.append("<h2>Mapa</h2>")
+    parts.append(f'<h2>{t(lang, "map")}</h2>')
     statuses = {slug: (r["site"], r["alerts"]) for slug, r in results.items()}
-    map_html = overview_map(statuses)
-    parts.append(f'<iframe class="mapa" title="Mapa de los humedales" '
+    map_html = overview_map(statuses, lang)
+    parts.append(f'<iframe class="mapa" title="{t(lang, "map_title")}" '
                  f'srcdoc="{html.escape(map_html)}"></iframe>')
     parts.append("</main>")
-    parts.append(metodologia.section(results, pais))
+    parts.append(metodologia.section(results, pais, lang))
     parts.append(site_footer(pais))
     parts.append("</body></html>")
     return "\n".join(parts)

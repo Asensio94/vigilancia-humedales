@@ -9,7 +9,7 @@ Solo se evalúan observaciones con calidad "ok" y de satélites comparables entr
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from datetime import date, timedelta
 
 import pandas as pd
@@ -51,9 +51,16 @@ class Alert:
     message: str
     value: float | None
     reference: float | None
+    # The same message in other languages, for the report of each country. `message`
+    # stays the Spanish one: it is what the alert JSON has always carried.
+    translations: dict[str, str] = field(default_factory=dict)
+
+    def text(self, lang: str) -> str:
+        return self.translations.get(lang, self.message)
 
     def to_dict(self) -> dict:
         d = asdict(self)
+        d.pop("translations")
         d["date"] = self.date.isoformat()
         return d
 
@@ -182,7 +189,10 @@ def evaluate(site: Site, series: pd.DataFrame) -> list[Alert]:
                 site.slug, when, "desecacion", "alta",
                 f"Lámina de agua de {last['water_ha']:.0f} ha (mediana de {n_cur} obs.), por debajo del percentil 10 "
                 f"histórico para estas fechas ({p10:.0f} ha; mediana {med:.0f} ha, n={len(ref)}).",
-                float(last["water_ha"]), p10))
+                float(last["water_ha"]), p10,
+                {"fr": f"Surface en eau de {last['water_ha']:.0f} ha (médiane de {n_cur} obs.), sous "
+                       f"le 10e centile historique pour ces dates ({p10:.0f} ha ; médiane "
+                       f"{med:.0f} ha, n={len(ref)})."}))
 
     # --- Descenso brusco, comparado con lo que cae de normal en esta época ---
     if not site.permanent_water:
@@ -194,12 +204,19 @@ def evaluate(site: Site, series: pd.DataFrame) -> list[Alert]:
                 extra = (f" Lo habitual en estas fechas es caer a lo sumo un "
                          f"{100 * (1 - season):.0f} % (n={n_ref})." if season is not None else
                          " Todavía no hay histórico de esta época con el que comparar la caída.")
+                extra_fr = (f" D'habitude, à ces dates, la baisse ne dépasse pas "
+                            f"{100 * (1 - season):.0f} % (n={n_ref})." if season is not None else
+                            " Il n'y a pas encore d'historique de cette époque pour comparer la "
+                            "baisse.")
                 alerts.append(Alert(
                     site.slug, when, "descenso_brusco", "media",
                     f"La lámina de agua ha caído a {cur_ha:.0f} ha (mediana de {n_cur} obs.) desde una "
                     f"mediana de {base:.0f} ha en los {RECENT_DAYS} días anteriores "
                     f"({100 * (1 - ratio):.0f} % menos).{extra}",
-                    cur_ha, base))
+                    cur_ha, base,
+                    {"fr": f"La surface en eau est tombée à {cur_ha:.0f} ha (médiane de {n_cur} "
+                           f"obs.), contre une médiane de {base:.0f} ha sur les {RECENT_DAYS} jours "
+                           f"précédents ({100 * (1 - ratio):.0f} % de moins).{extra_fr}"}))
 
     # --- Eutrofización: pico de clorofila contra los picos de la misma época ---
     # El umbral absoluto de la literatura (NDCI > 0.20, unos 40 mg/m³ de clorofila-a según
@@ -223,7 +240,15 @@ def evaluate(site: Site, series: pd.DataFrame) -> list[Alert]:
                    f"{config.NDCI_BLOOM}" if bloom_v > 0.1 else "")
                 + (". Supera además el umbral de floración algal de la literatura."
                    if peak > config.NDCI_BLOOM else "."),
-                peak, season_peak))
+                peak, season_peak,
+                {"fr": f"Pic de NDCI {peak:.3f} sur les {CURRENT_DAYS} derniers jours, au-dessus "
+                       f"des pics habituels à ces dates ({season_peak:.3f} est le "
+                       f"{100 * BLOOM_PERCENTILE:.0f}e centile de {n_peaks} fenêtres des années "
+                       f"précédentes)"
+                       + (f", avec {100 * bloom_v:.0f} % de la surface en eau au-dessus de "
+                          f"{config.NDCI_BLOOM}" if bloom_v > 0.1 else "")
+                       + (". Il dépasse en outre le seuil d'efflorescence algale de la "
+                          "littérature." if peak > config.NDCI_BLOOM else ".")}))
 
     # --- Turbidez respecto al histórico ---------------------------------------
     ndti = last["ndti_mean"]
@@ -233,6 +258,8 @@ def evaluate(site: Site, series: pd.DataFrame) -> list[Alert]:
             alerts.append(Alert(
                 site.slug, when, "turbidez", "media",
                 f"NDTI medio {ndti:.3f}, por encima del percentil 90 histórico para estas "
-                f"fechas ({p90:.3f}, n={len(ref)}).", float(ndti), p90))
+                f"fechas ({p90:.3f}, n={len(ref)}).", float(ndti), p90,
+                {"fr": f"NDTI moyen {ndti:.3f}, au-dessus du 90e centile historique pour ces "
+                       f"dates ({p90:.3f}, n={len(ref)})."}))
 
     return alerts
