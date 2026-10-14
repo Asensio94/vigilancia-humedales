@@ -12,7 +12,10 @@ con la serie histórica del mismo humedal en la misma época del año. Son doce,
 [/france.html](https://asensio94.github.io/vigilancia-humedales/france.html) (Francia)**, y sus
 alertas en formato legible por programa en
 [`alertas.json`](https://asensio94.github.io/vigilancia-humedales/alertas.json), que lleva las de
-los dos países (o `alertas_es.json` y `alertas_fr.json` por separado). El propio informe
+los dos países (o `alertas_es.json` y `alertas_fr.json` por separado). El estado del agua de los
+seis humedales españoles sale también en
+[`signals.json`](https://asensio94.github.io/vigilancia-humedales/signals.json), en el formato
+común que lee [Estado de las IBA](https://asensio94.github.io/estado-iba/) (`signals.py`). El propio informe
 lleva al final una sección [«Cómo se calcula»](https://asensio94.github.io/vigilancia-humedales/#metodologia)
 en lenguaje llano, con un glosario de siglas: se genera desde `metodologia.py` leyendo los umbrales
 reales de `config` y `alerts`, así que no puede quedarse describiendo una versión anterior. Cada
@@ -624,7 +627,7 @@ el mismo comando para volver a intentarlas.
 | `data/hydro/stations.json` | Estaciones de la ICTS-Doñana asociadas a cada humedal, con su variable y sensor. |
 | `data/hydro/instruments.json` | Sensor elegido por `choose_instrument` para cada humedal y variable. |
 | `data/img/<humedal>_<fecha>.jpg` | Última imagen de cada humedal, reutilizada los días sin escena nueva. |
-| `output/` (no versionado) | `informe_<país>_<fecha>.html`, `alertas_<fecha>.json` y `alertas_<país>_<fecha>.json`. |
+| `output/` (no versionado) | `informe_<país>_<fecha>.html`, `alertas_<fecha>.json`, `alertas_<país>_<fecha>.json` y `signals_<fecha>.json`. |
 
 ## Fuentes y licencias
 
@@ -632,6 +635,7 @@ el mismo comando para volver a intentarlas.
 |---|---|---|
 | Earth Search v1 (Element 84, AWS) `sentinel-2-l2a` | catálogo STAC y COG de cada banda; histórico desde 2017 | público, sin clave |
 | EEA Natura 2000 (ArcGIS REST) | polígono de cada humedal por código de sitio | público |
+| Vigía de incendios, `natura.geojson` | todos los espacios Natura 2000 de España, para saber en cuáles cae cada humedal (al menos un 25 % de su superficie) en `signals.json` | público |
 | OpenStreetMap Overpass | trazos `natural=coastline` para recortar el mar de los humedales costeros | público, exige `User-Agent` |
 | ICTS-Doñana Hidromet (`datos-automaticos.icts-donana.es`) | calado diario de la marisma y lluvia, medidos en el suelo | público, CC BY 4.0, 100 peticiones/hora por IP |
 | REDIAM, WFS `REDIAM_zonificacion_plan_regadios_corona_forestal_donana` (capa `Zona_B_C_regable`) | zonificación del Plan Especial de la Corona Forestal (Decreto 178/2014): suelo agrícola regable (`SAR_1025`) y zonas A, B y C | público, sin clave; copia versionada en `data/legal/` |

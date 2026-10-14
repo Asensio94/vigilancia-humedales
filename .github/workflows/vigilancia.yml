@@ -102,6 +102,7 @@ jobs:
           alertas_$fecha.json alertas.json
           alertas_ES_$fecha.json alertas_es.json
           alertas_FR_$fecha.json alertas_fr.json
+          signals_$fecha.json signals.json
           LISTA
           if [ ! -f publicar/index.html ] && [ ! -f publicar/france.html ]; then
             echo "::error::no hay ningún informe que publicar"; exit 1

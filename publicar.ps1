@@ -28,7 +28,8 @@ $paginas = @(
     @("informe_FR_$Fecha.html", "france.html"),
     @("alertas_$Fecha.json",    "alertas.json"),
     @("alertas_ES_$Fecha.json", "alertas_es.json"),
-    @("alertas_FR_$Fecha.json", "alertas_fr.json")
+    @("alertas_FR_$Fecha.json", "alertas_fr.json"),
+    @("signals_$Fecha.json",    "signals.json")
 )
 foreach ($par in $paginas) {
     $origen = "$raiz\output\$($par[0])"
