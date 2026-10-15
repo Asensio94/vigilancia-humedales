@@ -22,6 +22,8 @@ reales de `config` y `alerts`, así que no puede quedarse describiendo una versi
 página lleva la metodología de su país, con sus propios ejemplos medidos. Lo que sigue aquí es la
 trastienda técnica.
 
+> **Estado: activo.** Se actualiza solo y sigue en desarrollo.
+
 ## Cómo funciona
 
 1. `sites.py`: catálogo de humedales con sus códigos Natura 2000; descarga y cachea la geometría.
