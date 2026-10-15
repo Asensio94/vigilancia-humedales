@@ -317,6 +317,7 @@ SIBLINGS = [
     ("https://asensio94.github.io/cuaderno-campo/", "Cuaderno de campo"),
     ("https://asensio94.github.io/caudal-ecologico/", "Caudal ecológico"),
     ("https://asensio94.github.io/estado-iba/", "Estado de las IBA"),
+    ("https://asensio94.github.io/acuiferos-francia/", "Acuíferos de Francia"),
 ]
 OWN_SIBLING = "Vigilancia de humedales"
 
