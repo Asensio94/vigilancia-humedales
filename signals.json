@@ -1,0 +1,274 @@
+{
+  "source": "vigilancia-humedales",
+  "version": 1,
+  "generated": "2026-10-17T10:54Z",
+  "coverage": {
+    "label": "Seis humedales",
+    "sites": [
+      "ES0000013",
+      "ES0000017",
+      "ES0000023",
+      "ES0000024",
+      "ES0000033",
+      "ES0000260",
+      "ES0000471",
+      "ES2430043",
+      "ES6200030"
+    ],
+    "note": "Agua libre con Sentinel-2 desde 2017, frente a la mediana del mismo mes en años anteriores."
+  },
+  "signals": [
+    {
+      "id": "fuente-piedra",
+      "kind": "wetland_water",
+      "date": "2026-08-18",
+      "title": "Laguna de Fuente de Piedra: 330 ha de agua; en ese mes suele estar seca",
+      "url": "https://asensio94.github.io/vigilancia-humedales/",
+      "sites": [
+        {
+          "code": "ES0000033"
+        }
+      ],
+      "municipalities": [],
+      "precision": "lamina",
+      "deadline": null,
+      "status": "antiguo",
+      "value": {
+        "amount": 329.5,
+        "unit": "ha"
+      },
+      "details": {
+        "ratio": null,
+        "ref_ha": 0.9,
+        "ref_years": [
+          2017,
+          2018,
+          2019,
+          2020,
+          2021
+        ],
+        "dry_ref": true,
+        "current": false,
+        "name": "Laguna de Fuente de Piedra",
+        "point": [
+          -4.7788,
+          37.1098
+        ]
+      }
+    },
+    {
+      "id": "mar-menor",
+      "kind": "wetland_water",
+      "date": "2026-09-21",
+      "title": "Mar Menor: 100 % del agua normal en ese mes",
+      "url": "https://asensio94.github.io/vigilancia-humedales/",
+      "sites": [
+        {
+          "code": "ES0000260"
+        },
+        {
+          "code": "ES6200030"
+        }
+      ],
+      "municipalities": [],
+      "precision": "lamina",
+      "deadline": null,
+      "status": "vigente",
+      "value": {
+        "amount": 13209.5,
+        "unit": "ha"
+      },
+      "details": {
+        "ratio": 1.0,
+        "ref_ha": 13167.1,
+        "ref_years": [
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024,
+          2025
+        ],
+        "dry_ref": false,
+        "current": true,
+        "name": "Mar Menor",
+        "point": [
+          -0.7983,
+          37.7259
+        ]
+      }
+    },
+    {
+      "id": "tablas-daimiel",
+      "kind": "wetland_water",
+      "date": "2026-09-24",
+      "title": "Tablas de Daimiel: 390 % del agua normal en ese mes",
+      "url": "https://asensio94.github.io/vigilancia-humedales/",
+      "sites": [
+        {
+          "code": "ES0000013"
+        }
+      ],
+      "municipalities": [],
+      "precision": "lamina",
+      "deadline": null,
+      "status": "vigente",
+      "value": {
+        "amount": 189.2,
+        "unit": "ha"
+      },
+      "details": {
+        "ratio": 3.9,
+        "ref_ha": 48.5,
+        "ref_years": [
+          2017,
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2025
+        ],
+        "dry_ref": false,
+        "current": true,
+        "name": "Tablas de Daimiel",
+        "point": [
+          -3.6931,
+          39.1497
+        ]
+      }
+    },
+    {
+      "id": "albufera-valencia",
+      "kind": "wetland_water",
+      "date": "2026-10-08",
+      "title": "L'Albufera de València: 109 % del agua normal en ese mes",
+      "url": "https://asensio94.github.io/vigilancia-humedales/",
+      "sites": [
+        {
+          "code": "ES0000023"
+        },
+        {
+          "code": "ES0000471"
+        }
+      ],
+      "municipalities": [],
+      "precision": "lamina",
+      "deadline": null,
+      "status": "vigente",
+      "value": {
+        "amount": 9947.6,
+        "unit": "ha"
+      },
+      "details": {
+        "ratio": 1.09,
+        "ref_ha": 9117.5,
+        "ref_years": [
+          2017,
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024,
+          2025
+        ],
+        "dry_ref": false,
+        "current": true,
+        "name": "L'Albufera de València",
+        "point": [
+          -0.3416,
+          39.3042
+        ]
+      }
+    },
+    {
+      "id": "donana",
+      "kind": "wetland_water",
+      "date": "2026-10-12",
+      "title": "Doñana: 101 % del agua normal en ese mes",
+      "url": "https://asensio94.github.io/vigilancia-humedales/",
+      "sites": [
+        {
+          "code": "ES0000024"
+        }
+      ],
+      "municipalities": [],
+      "precision": "lamina",
+      "deadline": null,
+      "status": "vigente",
+      "value": {
+        "amount": 7814.9,
+        "unit": "ha"
+      },
+      "details": {
+        "ratio": 1.01,
+        "ref_ha": 7723.4,
+        "ref_years": [
+          2017,
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024,
+          2025
+        ],
+        "dry_ref": false,
+        "current": true,
+        "name": "Doñana",
+        "point": [
+          -6.4001,
+          37.0615
+        ]
+      }
+    },
+    {
+      "id": "gallocanta",
+      "kind": "wetland_water",
+      "date": "2026-10-16",
+      "title": "Laguna de Gallocanta: 76 % del agua normal en ese mes",
+      "url": "https://asensio94.github.io/vigilancia-humedales/",
+      "sites": [
+        {
+          "code": "ES0000017"
+        },
+        {
+          "code": "ES2430043"
+        }
+      ],
+      "municipalities": [],
+      "precision": "lamina",
+      "deadline": null,
+      "status": "vigente",
+      "value": {
+        "amount": 434.5,
+        "unit": "ha"
+      },
+      "details": {
+        "ratio": 0.76,
+        "ref_ha": 569.8,
+        "ref_years": [
+          2018,
+          2020,
+          2021,
+          2022,
+          2024,
+          2025
+        ],
+        "dry_ref": false,
+        "current": true,
+        "name": "Laguna de Gallocanta",
+        "point": [
+          -1.5079,
+          40.9646
+        ]
+      }
+    }
+  ]
+}
