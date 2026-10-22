@@ -269,6 +269,8 @@ CSS = """
 .paises{margin:0;font-size:14px;color:var(--muted)}
 .paises a[aria-current]{color:var(--ink);text-decoration:none}
 .site-header .note{margin:0;max-width:72ch}
+.siblings li[aria-current]{color:var(--ink);font-weight:600}
+.site-footer .hub{margin:0;font-weight:600}
 main{max-width:1440px;margin:0 auto;padding:0 16px}
 main h2{margin:2.5rem 0 .6rem;padding-bottom:4px;border-bottom:1px solid var(--line);
   font:700 26px/1.1 var(--font-title);text-transform:uppercase;letter-spacing:.03em}
