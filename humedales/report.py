@@ -326,7 +326,7 @@ SIBLINGS = [
     ("Vigilancia de humedales", "vigilancia-humedales/",
      "Veille des zones humides", "vigilancia-humedales/france.html"),
     ("Caudal ecológico", "caudal-ecologico/", "Débit écologique", "caudal-ecologico/"),
-    ("Acuíferos de Francia", "acuiferos-francia/", "Nappes de France", "acuiferos-francia/"),
+    ("Acuíferos de Francia", "acuiferos-francia/", "Nappes de France", "acuiferos-francia/fr/"),
     ("Depuración y baño", "depuracion-y-bano/", "Épuration et baignade", "depuracion-y-bano/fr/"),
     ("Construir en zona inundable", "zona-inundable/",
      "Construire en zone inondable", "zona-inundable/"),
