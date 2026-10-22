@@ -50,9 +50,10 @@ UI: dict[str, dict[str, str]] = {
                  "la misma época del año. Todo lo demás —qué mide cada índice, qué fechas se "
                  "descartan, cómo se decide una alerta y qué significa cada sigla— está en "
                  '<a href="#metodologia">Cómo se calcula</a>, al final.'),
-        "fig_sites": "humedales",
-        "fig_alerts": "alertas activas",
-        "fig_sites_alert": "humedales con alerta",
+        "fig_sites": "humedal|humedales",
+        "fig_recent": "humedal con lectura reciente|humedales con lectura reciente",
+        "fig_alerts": "alerta activa|alertas activas",
+        "fig_sites_alert": "humedal con alerta|humedales con alerta",
         "fig_last": "última fecha válida",
         "fig_valid": "fechas válidas en la serie",
         "summary": "Resumen",
@@ -60,6 +61,27 @@ UI: dict[str, dict[str, str]] = {
         "th_last": "Última fecha válida",
         "th_water": "Agua (ha)",
         "th_alerts": "Alertas",
+        "th_ndci": "clorofila",
+        "th_ndti": "turbidez",
+        "tip_ndci": ("Índice de clorofila del agua libre: sin unidades, de −1 a 1; cuanto más "
+                     "alto, más algas."),
+        "tip_ndti": ("Índice de turbidez del agua libre: sin unidades, de −1 a 1; cuanto más "
+                     "alto, más turbia."),
+        "stale": "sin lectura reciente",
+        "table_note": ("<b>NDCI</b> es un índice de clorofila y <b>NDTI</b> uno de turbidez, "
+                       "medidos solo sobre el agua libre. Son cocientes entre bandas de la "
+                       "imagen, sin unidades, que van de −1 a 1: cuanto más alto el NDCI, más "
+                       "algas (un valor alto apunta a eutrofización); cuanto más alto el NDTI, "
+                       "más turbia el agua. En agua clara los dos suelen ser negativos. Sirven "
+                       "para comparar un humedal consigo mismo en la misma época, no un humedal "
+                       "con otro. <b>Lectura reciente</b>: la última fecha válida tiene {days} "
+                       "días o menos ({recent} de {n} humedales)."),
+        "stale_note": ("Los demás conservan aquí su "
+                       "última fecha válida, más antigua: desde entonces ninguna fecha ha pasado "
+                       "los filtros de calidad (nubes, neblina o un espectro del agua que no "
+                       "cuadra, típico cuando queda muy poca lámina). Por "
+                       "eso Terra Aperta cuenta {recent} humedales "
+                       "con lectura reciente y no {n}."),
         "no_valid_row": "sin observaciones válidas",
         "none": "ninguna",
         "no_valid_period": "Sin observaciones válidas en el periodo.",
@@ -139,9 +161,10 @@ UI: dict[str, dict[str, str]] = {
                  "à la même époque de l'année. Tout le reste — ce que mesure chaque indice, quelles "
                  "dates sont écartées, comment se décide une alerte et ce que veut dire chaque "
                  'sigle — se trouve dans <a href="#metodologia">Méthode de calcul</a>, à la fin.'),
-        "fig_sites": "zones humides",
-        "fig_alerts": "alertes actives",
-        "fig_sites_alert": "zones humides en alerte",
+        "fig_sites": "zone humide|zones humides",
+        "fig_recent": "zone humide avec une mesure récente|zones humides avec une mesure récente",
+        "fig_alerts": "alerte active|alertes actives",
+        "fig_sites_alert": "zone humide en alerte|zones humides en alerte",
         "fig_last": "dernière date valide",
         "fig_valid": "dates valides dans la série",
         "summary": "Synthèse",
@@ -149,6 +172,26 @@ UI: dict[str, dict[str, str]] = {
         "th_last": "Dernière date valide",
         "th_water": "Eau (ha)",
         "th_alerts": "Alertes",
+        "th_ndci": "chlorophylle",
+        "th_ndti": "turbidité",
+        "tip_ndci": ("Indice de chlorophylle de l'eau libre : sans unité, de −1 à 1 ; plus il "
+                     "est élevé, plus il y a d'algues."),
+        "tip_ndti": ("Indice de turbidité de l'eau libre : sans unité, de −1 à 1 ; plus il est "
+                     "élevé, plus l'eau est trouble."),
+        "stale": "pas de mesure récente",
+        "table_note": ("Le <b>NDCI</b> est un indice de chlorophylle et le <b>NDTI</b> un indice "
+                       "de turbidité, mesurés seulement sur l'eau libre. Ce sont des rapports "
+                       "entre bandes de l'image, sans unité, qui vont de −1 à 1 : plus le NDCI est "
+                       "élevé, plus il y a d'algues (une valeur élevée signale une eutrophisation) ; "
+                       "plus le NDTI est élevé, plus l'eau est trouble. En eau claire, les deux "
+                       "sont en général négatifs. Ils servent à comparer une zone humide avec "
+                       "elle-même à la même époque, pas une zone humide avec une autre. "
+                       "<b>Mesure récente</b> : la dernière date valide a {days} jours ou moins "
+                       "({recent} zones humides sur {n})."),
+        "stale_note": ("Les autres gardent ici leur dernière "
+                       "date valide, plus ancienne : depuis, aucune date n'a passé les filtres "
+                       "de qualité (nuages, brume ou un spectre de l'eau incohérent, fréquent "
+                       "quand il reste très peu d'eau)."),
         "no_valid_row": "aucune observation valide",
         "none": "aucune",
         "no_valid_period": "Aucune observation valide sur la période.",
@@ -212,6 +255,13 @@ UI: dict[str, dict[str, str]] = {
         "src_code": "Code sous licence MIT sur {link}.",
     },
 }
+
+
+def plural(n: int, forms: str, lang: str) -> str:
+    """The singular or plural of "singular|plural" for a count `n`. French takes the
+    singular for 0 as well as 1; Spanish only for 1."""
+    one, many = forms.split("|")
+    return one if n == 1 or (lang == "fr" and n == 0) else many
 
 
 def t(lang: str, key: str, **kw) -> str:
