@@ -303,21 +303,30 @@ main th{font:600 14px/1.3 var(--font-title);text-transform:uppercase;letter-spac
 PAISES = {"ES": "index.html", "FR": "france.html"}
 
 
-# Common footer of the sibling projects (style guide, section 3). This project's own
-# entry is marked with aria-current.
+# Common footer of the Terra Aperta projects: a link back to the hub, then the twelve
+# projects in the hub's menu order, each with its French name and page for lang="fr".
+# This project's own entry is plain text marked with aria-current.
+_GH = "https://asensio94.github.io/"
+HUB = {"es": _GH + "terra-aperta/", "fr": _GH + "terra-aperta/fr/"}
 SIBLINGS = [
-    ("https://asensio94.github.io/observatorio-alegaciones/", "Observatorio de alegaciones"),
-    ("https://asensio94.github.io/vigia-incendios/", "Vigía de incendios"),
-    ("https://asensio94.github.io/centinela-natura/", "Centinela Natura"),
-    ("https://asensio94.github.io/vigilancia-humedales/", "Vigilancia de humedales"),
-    ("https://asensio94.github.io/sub-nocte/", "Sub Nocte"),
-    ("https://asensio94.github.io/riesgo-tendidos-aves/", "Riesgo de tendidos para aves"),
-    ("https://asensio94.github.io/grafo-promotores/", "Grafo de promotores"),
-    ("https://asensio94.github.io/cartera-cotizadas/", "Cartera de las cotizadas"),
-    ("https://asensio94.github.io/cuaderno-campo/", "Cuaderno de campo"),
-    ("https://asensio94.github.io/caudal-ecologico/", "Caudal ecológico"),
-    ("https://asensio94.github.io/estado-iba/", "Estado de las IBA"),
-    ("https://asensio94.github.io/acuiferos-francia/", "Acuíferos de Francia"),
+    # (Spanish name, Spanish page, French name, French page)
+    ("Sub Nocte", "sub-nocte/", "Sub Nocte", "sub-nocte/"),
+    ("Vigía de incendios", "vigia-incendios/", "Vigie des incendies", "vigia-incendios/fr/"),
+    ("Centinela Natura", "centinela-natura/", "Centinela Natura", "centinela-natura/fr/"),
+    ("Estado de las IBA", "estado-iba/", "État des IBA", "estado-iba/fr/"),
+    ("Riesgo de tendidos para aves", "riesgo-tendidos-aves/",
+     "Risque des lignes pour les oiseaux", "riesgo-tendidos-aves/regions.fr.html"),
+    ("Observatorio de alegaciones", "observatorio-alegaciones/",
+     "Observatoire des consultations", "observatorio-alegaciones/"),
+    ("Grafo de promotores", "grafo-promotores/",
+     "Graphe des porteurs de projet", "grafo-promotores/"),
+    ("Vigilancia de humedales", "vigilancia-humedales/",
+     "Veille des zones humides", "vigilancia-humedales/france.html"),
+    ("Caudal ecológico", "caudal-ecologico/", "Débit écologique", "caudal-ecologico/"),
+    ("Acuíferos de Francia", "acuiferos-francia/", "Nappes de France", "acuiferos-francia/"),
+    ("Depuración y baño", "depuracion-y-bano/", "Épuration et baignade", "depuracion-y-bano/fr/"),
+    ("Construir en zona inundable", "zona-inundable/",
+     "Construire en zone inondable", "zona-inundable/"),
 ]
 OWN_SIBLING = "Vigilancia de humedales"
 
@@ -340,17 +349,17 @@ def site_footer(pais: str, fuentes: list[str] | None = None) -> str:
 
 
 def _footer(fuentes: list[str], lang: str = "es") -> str:
+    fr = lang == "fr"
     items = "\n".join(
-        f'    <li aria-current="page"><a href="{url}">{name}</a></li>' if name == OWN_SIBLING
-        else f'    <li><a href="{url}">{name}</a></li>'
-        for url, name in SIBLINGS)
+        f'    <li aria-current="page">{name_fr if fr else name}</li>' if name == OWN_SIBLING
+        else f'    <li><a href="{_GH}{page_fr if fr else page}">{name_fr if fr else name}</a></li>'
+        for name, page, name_fr, page_fr in SIBLINGS)
     return (
         '<footer class="site-footer">\n'
         f'  <p class="principle">{t(lang, "principle")}</p>\n'
         + "".join(f"  <p>{f}</p>\n" for f in fuentes)
-        # The sibling projects keep their Spanish names: they are proper names.
-        + f'  <nav aria-label="{t(lang, "siblings")}"><ul class="siblings"'
-        + ("" if lang == "es" else ' lang="es"') + ">\n"
+        + f'  <p class="hub"><a href="{HUB["fr" if fr else "es"]}">{t(lang, "hub")}</a></p>\n'
+        + f'  <nav aria-label="{t(lang, "siblings")}"><ul class="siblings">\n'
         + items
         + "\n  </ul></nav>\n</footer>")
 

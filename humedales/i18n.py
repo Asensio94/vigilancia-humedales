@@ -112,6 +112,7 @@ UI: dict[str, dict[str, str]] = {
         # Footer.
         "principle": ("Datos públicos, reglas a la vista y cada cifra enlazada a su fuente. "
                       "Indicios, no veredictos."),
+        "hub": "← Terra Aperta: todos los proyectos",
         "siblings": "Proyectos hermanos",
         "src_images": ("Imágenes: Copernicus Sentinel-2 L2A, servidas por Earth Search "
                        "(Element 84, AWS)."),
@@ -199,7 +200,8 @@ UI: dict[str, dict[str, str]] = {
                         "nuages (blanc)"),
         "principle": ("Données publiques, règles visibles et chaque chiffre relié à sa source. "
                       "Des indices, pas des verdicts."),
-        "siblings": "Projets associés",
+        "hub": "← Terra Aperta : tous les projets",
+        "siblings": "Projets frères",
         "src_images": ("Images : Copernicus Sentinel-2 L2A, distribuées par Earth Search "
                        "(Element 84, AWS)."),
         "src_natura": ("Contours des zones humides : réseau Natura 2000 (Agence européenne pour "
