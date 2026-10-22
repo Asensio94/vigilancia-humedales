@@ -20,6 +20,7 @@ from . import config, hydro, i18n, masks, metodologia
 from .alerts import Alert
 from .indices import Rasters
 from .logo import LOGO_SVG, favicon_link
+from .signals import MAX_AGE_DAYS
 from .i18n import t
 from .sites import SITES, Site, site_geometry, site_text
 
@@ -354,17 +355,28 @@ def _footer(fuentes: list[str], lang: str = "es") -> str:
         + "\n  </ul></nav>\n</footer>")
 
 
-def header_figures(results: dict[str, dict], lang: str = "es") -> str:
-    """Key figures of the page: wetlands, active alerts, last valid date, valid dates."""
+def _recent(latest: dict | None, run_date: date) -> bool:
+    """Whether the latest valid date is a recent reading: the MAX_AGE_DAYS rule with which
+    signals.json marks a wetland's state as current, the figure Terra Aperta shows."""
+    if latest is None:
+        return False
+    return (run_date - date.fromisoformat(str(latest["date"])[:10])).days <= MAX_AGE_DAYS
+
+
+def header_figures(results: dict[str, dict], run_date: date, lang: str = "es") -> str:
+    """Key figures of the page: wetlands, recent readings, active alerts, last valid date,
+    valid dates."""
     n_alertas = sum(len(r["alerts"]) for r in results.values())
     con_alerta = sum(1 for r in results.values() if r["alerts"])
     fechas = [str(r["latest"]["date"]) for r in results.values() if r["latest"] is not None]
     n_ok = sum(int((r["series"]["quality"] == "ok").sum()) for r in results.values()
                if r["series"] is not None and not r["series"].empty)
+    n_recent = sum(_recent(r["latest"], run_date) for r in results.values())
     cifras = [
-        (str(len(results)), t(lang, "fig_sites")),
-        (str(n_alertas), t(lang, "fig_alerts")),
-        (str(con_alerta), t(lang, "fig_sites_alert")),
+        (str(len(results)), i18n.plural(len(results), t(lang, "fig_sites"), lang)),
+        (str(n_recent), i18n.plural(n_recent, t(lang, "fig_recent"), lang)),
+        (str(n_alertas), i18n.plural(n_alertas, t(lang, "fig_alerts"), lang)),
+        (str(con_alerta), i18n.plural(con_alerta, t(lang, "fig_sites_alert"), lang)),
         (max(fechas) if fechas else "–", t(lang, "fig_last")),
         (_ha(n_ok, lang), t(lang, "fig_valid")),
     ]
@@ -401,7 +413,7 @@ def render(results: dict[str, dict], run_date: date, pais: str = "ES") -> str:
         f"<h1>{LOGO_SVG}{t(lang, 'h1')}</h1>",
         f'<nav class="paises label" aria-label="{t(lang, "countries")}">{paises}</nav>',
         f'<p class="lede">{t(lang, "lede", n=len(results), where=donde)}</p>',
-        header_figures(results, lang),
+        header_figures(results, run_date, lang),
         f'<p class="note">{t(lang, "note", date=run_date.isoformat())}</p>',
         "</header>",
         "<main>",
@@ -409,7 +421,11 @@ def render(results: dict[str, dict], run_date: date, pais: str = "ES") -> str:
 
     parts.append(f'<h2>{t(lang, "summary")}</h2><div class="tabla"><table><tr>'
                  f'<th>{t(lang, "th_site")}</th><th>{t(lang, "th_last")}</th>'
-                 f'<th>{t(lang, "th_water")}</th><th>NDCI</th><th>NDTI</th>'
+                 f'<th>{t(lang, "th_water")}</th>'
+                 f'<th><abbr title="{t(lang, "tip_ndci")}">NDCI</abbr><br>'
+                 f'<small>{t(lang, "th_ndci")}</small></th>'
+                 f'<th><abbr title="{t(lang, "tip_ndti")}">NDTI</abbr><br>'
+                 f'<small>{t(lang, "th_ndti")}</small></th>'
                  f'<th>{t(lang, "th_alerts")}</th></tr>')
     for slug, res in results.items():
         site, latest, alerts = res["site"], res["latest"], res["alerts"]
@@ -419,11 +435,18 @@ def render(results: dict[str, dict], run_date: date, pais: str = "ES") -> str:
                          f'<td colspan=5>{t(lang, "no_valid_row")}</td></tr>')
             continue
         parts.append(
-            f"<tr><td>{nombre}</td><td>{latest['date']}</td>"
+            f"<tr><td>{nombre}</td><td>{latest['date']}"
+            + ("" if _recent(latest, run_date) else f"<br><small>{t(lang, 'stale')}</small>")
+            + "</td>"
             f"<td>{_ha(latest['water_ha'], lang)}</td><td>{_fmt(latest['ndci_mean'])}</td>"
             f"<td>{_fmt(latest['ndti_mean'])}</td>"
             f"<td>{', '.join(_kind(a.kind, lang) for a in alerts) or t(lang, 'none')}</td></tr>")
     parts.append("</table></div>")
+    n_recent = sum(_recent(r["latest"], run_date) for r in results.values())
+    nota = t(lang, "table_note", days=MAX_AGE_DAYS, n=len(results), recent=n_recent)
+    if n_recent < len(results):
+        nota += " " + t(lang, "stale_note", n=len(results), recent=n_recent)
+    parts.append(f"<p><small>{nota}</small></p>")
 
     for slug, res in results.items():
         site, df, alerts, latest = res["site"], res["series"], res["alerts"], res["latest"]
