@@ -1,0 +1,11 @@
+[
+  {
+    "site": "gallocanta",
+    "date": "2026-10-28",
+    "kind": "eutrofizacion",
+    "severity": "alta",
+    "message": "Pico de NDCI 0.521 en los últimos 20 días, por encima de los picos habituales en estas fechas (0.361 es el percentil 90 de 49 ventanas de años anteriores), con el 95 % de la lámina por encima de 0.2. Supera además el umbral de floración algal de la literatura.",
+    "value": 0.5211,
+    "reference": 0.36100000000000004
+  }
+]
