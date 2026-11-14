@@ -1,0 +1,11 @@
+[
+  {
+    "site": "grand-lieu",
+    "date": "2026-11-11",
+    "kind": "desecacion",
+    "severity": "alta",
+    "message": "Lámina de agua de 680 ha (mediana de 1 obs.), por debajo del percentil 10 histórico para estas fechas (850 ha; mediana 1230 ha, n=33).",
+    "value": 680.0,
+    "reference": 849.52
+  }
+]

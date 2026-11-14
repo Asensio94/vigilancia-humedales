@@ -1,0 +1,20 @@
+[
+  {
+    "site": "gallocanta",
+    "date": "2026-11-05",
+    "kind": "eutrofizacion",
+    "severity": "alta",
+    "message": "Pico de NDCI 0.521 en los últimos 20 días, por encima de los picos habituales en estas fechas (0.358 es el percentil 90 de 41 ventanas de años anteriores), con el 96 % de la lámina por encima de 0.2. Supera además el umbral de floración algal de la literatura.",
+    "value": 0.5211,
+    "reference": 0.3576
+  },
+  {
+    "site": "grand-lieu",
+    "date": "2026-11-11",
+    "kind": "desecacion",
+    "severity": "alta",
+    "message": "Lámina de agua de 680 ha (mediana de 1 obs.), por debajo del percentil 10 histórico para estas fechas (850 ha; mediana 1230 ha, n=33).",
+    "value": 680.0,
+    "reference": 849.52
+  }
+]
